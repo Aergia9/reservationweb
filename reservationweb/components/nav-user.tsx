@@ -8,6 +8,8 @@ import {
   IconUserCircle,
 } from "@tabler/icons-react"
 
+import {Button} from "@/components/ui/button"
+
 import {
   Avatar,
   AvatarFallback,
@@ -73,7 +75,9 @@ export function NavUser({
             <DropdownMenuSeparator />
             <DropdownMenuItem>
               <IconLogout />
-              Log out
+            <Button variant="ghost" asChild size="sm" className="hidden sm:flex">
+              <a href="/login">Logout</a>
+            </Button>
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>

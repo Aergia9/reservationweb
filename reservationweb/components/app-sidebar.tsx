@@ -53,17 +53,17 @@ const data = {
   navMain: [
     {
       title: "Dashboard",
-      url: "/app/dashboard",
+      url: "/dashboard",
       icon: IconDashboard,
     },
     {
       title: "Event",
-      url: "/app/event",
+      url: "/event",
       icon: IconFolder,
     },
     {
       title: "Analytics",
-      url: "/app/analytics",
+      url: "/analytics",
       icon: IconChartBar,
     },
   ],
@@ -140,8 +140,8 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
               className="data-[slot=sidebar-menu-button]:!p-1.5"
             >
               <a href="#">
-                <IconInnerShadowTop className="!size-5" />
-                <span className="text-base font-semibold">Claro Hotel</span>
+                <IconInnerShadowTop className="!size-auto" />
+                <span className="text-base font-semibold !size-auto">Claro Hotel</span>
               </a>
             </SidebarMenuButton>
           </SidebarMenuItem>
