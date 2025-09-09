@@ -1,0 +1,65 @@
+
+# Please enter the commit message for your changes. Lines starting
+# with '#' will be ignored, and an empty message aborts the commit.
+#
+# On branch main
+# Your branch is up to date with 'origin/main'.
+#
+# Changes to be committed:
+#	modified:   .gitignore
+#	new file:   reservationweb/README.md
+#	new file:   reservationweb/app/dashboard/data.json
+#	new file:   reservationweb/app/dashboard/page.tsx
+#	new file:   reservationweb/app/favicon.ico
+#	new file:   reservationweb/app/globals.css
+#	new file:   reservationweb/app/layout.tsx
+#	new file:   reservationweb/app/login/page.tsx
+#	new file:   reservationweb/app/page.tsx
+#	new file:   reservationweb/app/signin/page.tsx
+#	new file:   reservationweb/components.json
+#	new file:   reservationweb/components/app-sidebar.tsx
+#	new file:   reservationweb/components/chart-area-interactive.tsx
+#	new file:   reservationweb/components/data-table.tsx
+#	new file:   reservationweb/components/login-form.tsx
+#	new file:   reservationweb/components/nav-documents.tsx
+#	new file:   reservationweb/components/nav-main.tsx
+#	new file:   reservationweb/components/nav-secondary.tsx
+#	new file:   reservationweb/components/nav-user.tsx
+#	new file:   reservationweb/components/section-cards.tsx
+#	new file:   reservationweb/components/site-header.tsx
+#	new file:   reservationweb/components/theme-provider.tsx
+#	new file:   reservationweb/components/ui/avatar.tsx
+#	new file:   reservationweb/components/ui/badge.tsx
+#	new file:   reservationweb/components/ui/breadcrumb.tsx
+#	new file:   reservationweb/components/ui/button.tsx
+#	new file:   reservationweb/components/ui/card.tsx
+#	new file:   reservationweb/components/ui/chart.tsx
+#	new file:   reservationweb/components/ui/checkbox.tsx
+#	new file:   reservationweb/components/ui/drawer.tsx
+#	new file:   reservationweb/components/ui/dropdown-menu.tsx
+#	new file:   reservationweb/components/ui/input.tsx
+#	new file:   reservationweb/components/ui/label.tsx
+#	new file:   reservationweb/components/ui/select.tsx
+#	new file:   reservationweb/components/ui/separator.tsx
+#	new file:   reservationweb/components/ui/sheet.tsx
+#	new file:   reservationweb/components/ui/sidebar.tsx
+#	new file:   reservationweb/components/ui/skeleton.tsx
+#	new file:   reservationweb/components/ui/sonner.tsx
+#	new file:   reservationweb/components/ui/table.tsx
+#	new file:   reservationweb/components/ui/tabs.tsx
+#	new file:   reservationweb/components/ui/toggle-group.tsx
+#	new file:   reservationweb/components/ui/toggle.tsx
+#	new file:   reservationweb/components/ui/tooltip.tsx
+#	new file:   reservationweb/hooks/use-mobile.ts
+#	new file:   reservationweb/lib/utils.ts
+#	new file:   reservationweb/next.config.ts
+#	new file:   reservationweb/package-lock.json
+#	new file:   reservationweb/package.json
+#	new file:   reservationweb/postcss.config.mjs
+#	new file:   reservationweb/public/file.svg
+#	new file:   reservationweb/public/globe.svg
+#	new file:   reservationweb/public/next.svg
+#	new file:   reservationweb/public/vercel.svg
+#	new file:   reservationweb/public/window.svg
+#	new file:   reservationweb/tsconfig.json
+#
