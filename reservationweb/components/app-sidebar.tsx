@@ -2,26 +2,12 @@
 
 import * as React from "react"
 import {
-  IconCamera,
   IconChartBar,
   IconDashboard,
-  IconDatabase,
-  IconFileAi,
-  IconFileDescription,
-  IconFileWord,
   IconFolder,
-  IconHelp,
   IconInnerShadowTop,
-  IconListDetails,
-  IconReport,
-  IconSearch,
-  IconSettings,
-  IconUsers,
 } from "@tabler/icons-react"
 import { cn } from "@/lib/utils"
-import { NavDocuments } from "@/components/nav-documents"
-import { NavMain } from "@/components/nav-main"
-import { NavSecondary } from "@/components/nav-secondary"
 import { NavUser } from "@/components/nav-user"
 import {
   Sidebar,
@@ -32,17 +18,9 @@ import {
   SidebarMenuButton,
   SidebarMenuItem,
 } from "@/components/ui/sidebar"
-
+import Link from "next/link"
 import { Moon, Sun } from "lucide-react"
 import { useTheme } from "next-themes"
-
-import { Button } from "@/components/ui/button"
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu"
 
 const data = {
   user: {
@@ -69,7 +47,7 @@ const data = {
   ],
 }
 
-// ModeToggle component to be integrated into the sidebar
+// ModeToggle component
 export function ModeToggle() {
   const { theme, setTheme } = useTheme()
   const [mounted, setMounted] = React.useState(false)
@@ -101,7 +79,6 @@ export function ModeToggle() {
       )}
       aria-label="Toggle theme"
     >
-      {/* Toggle circle */}
       <div
         className={cn(
           "inline-flex h-6 w-6 items-center justify-center rounded-full shadow-lg transition-all duration-300 ease-in-out",
@@ -110,7 +87,6 @@ export function ModeToggle() {
             : "translate-x-1 bg-white dark:bg-slate-100 transform",
         )}
       >
-        {/* Icons */}
         <Sun
           className={cn(
             "h-3 w-3 transition-all duration-300 ease-in-out",
@@ -128,32 +104,36 @@ export function ModeToggle() {
   )
 }
 
-
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   return (
     <Sidebar collapsible="offcanvas" {...props}>
       <SidebarHeader>
-        <SidebarMenu>
-          <SidebarMenuItem>
-            <SidebarMenuButton
-              asChild
-              className="data-[slot=sidebar-menu-button]:!p-1.5"
-            >
-              <a href="#">
-                <IconInnerShadowTop className="!size-auto" />
-                <span className="text-base font-semibold !size-auto">Claro Hotel</span>
-              </a>
-            </SidebarMenuButton>
-          </SidebarMenuItem>
-        </SidebarMenu>
+        <div className="flex items-center gap-2 p-1">
+          <IconInnerShadowTop className="h-6 w-6" />
+          <span className="text-xl font-semibold">Claro Hotel</span>
+        </div>
       </SidebarHeader>
       <SidebarContent>
-        <NavMain items={data.navMain} />
+        <div className="flex flex-col gap-1 p-2">
+          {data.navMain.map((item) => {
+            const Icon = item.icon
+            return (
+              <Link
+                key={item.title}
+                href={item.url}
+                className="flex items-center gap-2 rounded-lg px-3 py-2 text-left text-sm transition-all hover:bg-accent hover:text-accent-foreground focus:outline-none focus:ring-2 focus:ring-primary"
+              >
+                <Icon className="h-4 w-4" />
+                {item.title}
+              </Link>
+            )
+          })}
+        </div>
       </SidebarContent>
       <SidebarFooter>
-          <div className="flex items-center justify-between px-2">
-              <ModeToggle />
-          </div>
+        <div className="flex items-center justify-between px-2 mb-2">
+          <ModeToggle />
+        </div>
         <NavUser user={data.user} />
       </SidebarFooter>
     </Sidebar>
