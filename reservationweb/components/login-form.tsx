@@ -5,19 +5,34 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import Link from "next/link"
 import { useRouter } from "next/navigation"
+import { signInWithEmailAndPassword, setPersistence, browserSessionPersistence } from "firebase/auth"
+import { auth } from "@/lib/firebase" // <-- Correct import
 
 export function LoginForm({
   className,
   ...props
 }: React.ComponentProps<"div">) {
   const router = useRouter()
-  
-  const handleSubmit = (e: React.FormEvent) => {
+  const [email, setEmail] = React.useState("")
+  const [password, setPassword] = React.useState("")
+  const [error, setError] = React.useState<string | null>(null)
+  const [loading, setLoading] = React.useState(false)
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    // Add your login logic here
-    router.push("/dashboard")
+    setError(null)
+    setLoading(true)
+    try {
+      // use session persistence so closing tab clears session
+      await setPersistence(auth, browserSessionPersistence)
+      await signInWithEmailAndPassword(auth, email, password)
+      router.push("/dashboard")
+    } catch (err: any) {
+      setError(err.message || "Login failed")
+    } finally {
+      setLoading(false)
+    }
   }
 
   return (
@@ -38,18 +53,30 @@ export function LoginForm({
                     placeholder="m@example.com"
                     required
                     className="w-full"
+                    value={email}
+                    onChange={e => setEmail(e.target.value)}
                   />
                 </div>
                 <div className="grid gap-2">
                   <div className="flex items-center">
                     <Label htmlFor="password">Password</Label>
                   </div>
-                  <Input id="password" type="password" required className="w-full" />
+                  <Input
+                    id="password"
+                    type="password"
+                    required
+                    className="w-full"
+                    value={password}
+                    onChange={e => setPassword(e.target.value)}
+                  />
                 </div>
+                {error && (
+                  <div className="text-red-500 text-sm text-center">{error}</div>
+                )}
               </div>
               <div className="mt-6">
-                <Button type="submit" className="w-full">
-                  Login
+                <Button type="submit" className="w-full" disabled={loading}>
+                  {loading ? "Logging in..." : "Login"}
                 </Button>
               </div>
             </div>

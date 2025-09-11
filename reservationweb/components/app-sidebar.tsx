@@ -21,13 +21,10 @@ import {
 import Link from "next/link"
 import { Moon, Sun } from "lucide-react"
 import { useTheme } from "next-themes"
+import { auth } from "@/lib/firebase"
+import { onAuthStateChanged, User } from "firebase/auth"
 
 const data = {
-  user: {
-    name: "shadcn",
-    email: "m@example.com",
-    avatar: "/avatars/shadcn.jpg",
-  },
   navMain: [
     {
       title: "Dashboard",
@@ -134,7 +131,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
         <div className="flex items-center justify-between px-2 mb-2">
           <ModeToggle />
         </div>
-        <NavUser user={data.user} />
+        <NavUser/>
       </SidebarFooter>
     </Sidebar>
   )
