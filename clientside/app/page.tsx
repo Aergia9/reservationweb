@@ -6,8 +6,10 @@ import { useState } from "react"
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { MapPin, Star, Utensils, Users, Clock, Wine } from "lucide-react"
+import { MapPin, Users, Clock } from "lucide-react"
 import RoomBookingPopup from "@/components/room-booking-popup"
+import { LoginForm } from "@/components/login-popup"
+import { Dialog, DialogContent } from "@/components/ui/dialog"
 
 interface DiningRoom {
   id: number
@@ -90,6 +92,7 @@ export default function ReservationPage() {
   const [selectedRoom, setSelectedRoom] = useState<DiningRoom | null>(null)
   const [selectedEvent, setSelectedEvent] = useState<SpecialEvent | null>(null)
   const [isDialogOpen, setIsDialogOpen] = useState(false)
+  const [isLoginOpen, setIsLoginOpen] = useState(false)
 
   const handleRoomClick = (room: DiningRoom) => {
     setSelectedRoom(room)
@@ -125,12 +128,22 @@ export default function ReservationPage() {
         >
           <div className="absolute inset-0 bg-black/40" />
         </div>
+        <div className="absolute top-4 right-4 z-20">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setIsLoginOpen(true)}
+            className="bg-black/30 border-white/30 text-white hover:bg-black/50"
+          >
+            Sign In
+          </Button>
+        </div>
         <div className="relative z-10 flex items-center justify-center h-full">
           <div className="flex flex-col items-center text-center text-white px-4">
             <h1 className="text-5xl font-bold mb-4 text-balance">Dining Venue</h1>
             <p className="text-xl mb-6 text-pretty max-w-2xl">
-              Host unforgettable dinner events in our stunning venues. From intimate gatherings to grand
-              celebrations, we provide the perfect setting for your special occasions.
+              Host unforgettable dinner events in our stunning venues. From intimate gatherings to grand celebrations,
+              we provide the perfect setting for your special occasions.
             </p>
             <div className="flex items-center justify-center gap-2 text-lg">
               <MapPin className="h-5 w-5" />
@@ -151,19 +164,13 @@ export default function ReservationPage() {
         <div className="flex flex-wrap justify-center gap-8">
           {diningRooms.map((room) => (
             <Card
-              key={`room-${room.id}`} // FIX IS HERE
+              key={`room-${room.id}`}
               className="w-full max-w-sm overflow-hidden cursor-pointer transition-all duration-300 hover:shadow-lg hover:scale-105"
               onClick={() => handleRoomClick(room)}
             >
               <div className="relative">
-                <img
-                  src={room.image || "/placeholder.svg"}
-                  alt={room.name}
-                  className="w-full h-48 object-cover"
-                />
-                <Badge className="absolute top-4 right-4 bg-primary text-primary-foreground">
-                  ${room.price}/event
-                </Badge>
+                <img src={room.image || "/placeholder.svg"} alt={room.name} className="w-full h-48 object-cover" />
+                <Badge className="absolute top-4 right-4 bg-primary text-primary-foreground">${room.price}/event</Badge>
               </div>
               <CardContent className="p-6">
                 <h3 className="text-xl font-semibold mb-2">{room.name}</h3>
@@ -186,24 +193,20 @@ export default function ReservationPage() {
           <div className="text-center mb-12">
             <h2 className="text-4xl font-bold mb-4 text-balance">Special Event Packages</h2>
             <p className="text-lg text-muted-foreground max-w-2xl mx-auto text-pretty">
-              Enhance your dining experience with our curated special events. From wine tastings to live
-              entertainment, create unforgettable memories with our exclusive packages.
+              Enhance your dining experience with our curated special events. From wine tastings to live entertainment,
+              create unforgettable memories with our exclusive packages.
             </p>
           </div>
 
           <div className="flex flex-wrap justify-center gap-8">
             {specialEvents.map((event) => (
               <Card
-                key={`event-${event.id}`} // AND FIX IS HERE
+                key={`event-${event.id}`}
                 className="w-full max-w-sm overflow-hidden cursor-pointer transition-all duration-300 hover:shadow-lg hover:scale-105"
                 onClick={() => handleEventClick(event)}
               >
                 <div className="relative">
-                  <img
-                    src={event.image || "/placeholder.svg"}
-                    alt={event.name}
-                    className="w-full h-48 object-cover"
-                  />
+                  <img src={event.image || "/placeholder.svg"} alt={event.name} className="w-full h-48 object-cover" />
                   <Badge className="absolute top-4 right-4 bg-secondary text-secondary-foreground">
                     ${event.price}/person
                   </Badge>
@@ -243,6 +246,14 @@ export default function ReservationPage() {
         onClose={() => setIsDialogOpen(false)}
         onSubmit={handleSubmit}
       />
+
+      <Dialog open={isLoginOpen} onOpenChange={setIsLoginOpen}>
+        <DialogContent>
+              <LoginForm />
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
