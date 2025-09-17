@@ -250,8 +250,6 @@ export default function ReservationPage() {
       <Dialog open={isLoginOpen} onOpenChange={setIsLoginOpen}>
         <DialogContent>
               <LoginForm />
-            </div>
-          </div>
         </DialogContent>
       </Dialog>
     </div>
