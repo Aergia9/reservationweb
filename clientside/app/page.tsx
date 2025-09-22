@@ -140,7 +140,7 @@ export default function ReservationPage() {
         </div>
         <div className="relative z-10 flex items-center justify-center h-full">
           <div className="flex flex-col items-center text-center text-white px-4">
-            <h1 className="text-5xl font-bold mb-4 text-balance">Dining Venue</h1>
+            <h1 className="text-5xl font-bold mb-4 text-balance">Dining Event</h1>
             <p className="text-xl mb-6 text-pretty max-w-2xl">
               Host unforgettable dinner events in our stunning venues. From intimate gatherings to grand celebrations,
               we provide the perfect setting for your special occasions.
@@ -248,8 +248,13 @@ export default function ReservationPage() {
       />
 
       <Dialog open={isLoginOpen} onOpenChange={setIsLoginOpen}>
-        <DialogContent>
-              <LoginForm />
+        <DialogContent 
+          className="w-full h-full max-w-[1100px] max-h-[95vh] p-0 flex items-center justify-center sm:w-[98vw] sm:h-[98vh] sm:max-w-[1100px] sm:max-h-[95vh]"
+          style={{ minWidth: 0, minHeight: 0 }}
+        >
+          <div className="p-6 w-full h-full overflow-y-auto">
+            <LoginForm />
+          </div>
         </DialogContent>
       </Dialog>
     </div>
