@@ -2,7 +2,7 @@
 
 import type React from "react"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -10,30 +10,9 @@ import { MapPin, Users, Clock } from "lucide-react"
 import RoomBookingPopup from "@/components/room-booking-popup"
 import { LoginForm } from "@/components/login-popup"
 import { Dialog, DialogContent } from "@/components/ui/dialog"
+import { subscribeToClientEvents } from "@/lib/eventService"
+import { DiningRoom, SpecialEvent } from "@/lib/types"
 
-interface DiningRoom {
-  id: number
-  name: string
-  price: number
-  image: string
-  description: string
-  amenities: string[]
-  maxGuests: number
-  size: string
-  style: string
-}
-
-interface SpecialEvent {
-  id: number
-  name: string
-  price: number
-  image: string
-  description: string
-  includes: string[]
-  duration: string
-  eventType: string
-  minGuests: number
-}
 
 const diningRooms: DiningRoom[] = [
   {
@@ -93,6 +72,21 @@ export default function ReservationPage() {
   const [selectedEvent, setSelectedEvent] = useState<SpecialEvent | null>(null)
   const [isDialogOpen, setIsDialogOpen] = useState(false)
   const [isLoginOpen, setIsLoginOpen] = useState(false)
+  const [firebaseEvents, setFirebaseEvents] = useState<SpecialEvent[]>([])
+  const [loading, setLoading] = useState(true)
+
+  // Subscribe to Firebase events on component mount
+  useEffect(() => {
+    const unsubscribe = subscribeToClientEvents((events) => {
+      setFirebaseEvents(events)
+      setLoading(false)
+    })
+
+    return () => unsubscribe()
+  }, [])
+
+  // Combine hardcoded events with Firebase events for backward compatibility
+  const allEvents = [...specialEvents, ...firebaseEvents]
 
   const handleRoomClick = (room: DiningRoom) => {
     setSelectedRoom(room)
@@ -199,7 +193,15 @@ export default function ReservationPage() {
           </div>
 
           <div className="flex flex-wrap justify-center gap-8">
-            {specialEvents.map((event) => (
+            {loading ? (
+              <div className="flex items-center justify-center w-full py-8">
+                <div className="text-center">
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-2"></div>
+                  <p className="text-muted-foreground">Loading events...</p>
+                </div>
+              </div>
+            ) : (
+              allEvents.map((event) => (
               <Card
                 key={`event-${event.id}`}
                 className="w-full max-w-sm overflow-hidden cursor-pointer transition-all duration-300 hover:shadow-lg hover:scale-105"
@@ -234,7 +236,8 @@ export default function ReservationPage() {
                   </Button>
                 </CardContent>
               </Card>
-            ))}
+              ))
+            )}
           </div>
         </div>
       </div>

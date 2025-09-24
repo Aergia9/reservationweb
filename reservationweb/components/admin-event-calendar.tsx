@@ -2,7 +2,7 @@
 
 import type React from "react"
 
-import { useState, useMemo } from "react"
+import { useState, useMemo, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
@@ -13,23 +13,17 @@ import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Calendar, ChevronLeft, ChevronRight, Plus, Filter, Trash2, Clock, MapPin } from "lucide-react"
 import { cn } from "@/lib/utils"
+import { addEvent, deleteEvent, subscribeToEvents } from "@/lib/eventService"
+import { AdminEvent } from "@/lib/types"
 
 type ViewMode = "day" | "week" | "month" | "year"
 
 type DatePickerMode = "month" | "year" | "decade"
 
-type Event = {
-  id: string
-  title: string
-  description: string
-  startDate: Date
-  endDate: Date
-  startTime: string
-  endTime: string
-  category: "meeting" | "deadline" | "event" | "reminder"
-  location?: string
-}
+// Using AdminEvent type from shared types
+type Event = AdminEvent
 
+// Initial mock events for demonstration
 const mockEvents: Event[] = [
   {
     id: "1",
@@ -91,7 +85,8 @@ export function AdminEventCalendar() {
   const [currentDate, setCurrentDate] = useState(new Date())
   const [viewMode, setViewMode] = useState<ViewMode>("month")
   const [datePickerMode, setDatePickerMode] = useState<DatePickerMode>("month")
-  const [events, setEvents] = useState<Event[]>(mockEvents)
+  const [events, setEvents] = useState<Event[]>([])
+  const [loading, setLoading] = useState(true)
   const [selectedCategory, setSelectedCategory] = useState<string>("all")
   const [isAddEventOpen, setIsAddEventOpen] = useState(false)
   const [isYearEventsOpen, setIsYearEventsOpen] = useState(false)
@@ -107,6 +102,16 @@ export function AdminEventCalendar() {
     location: "",
   })
 
+  // Subscribe to Firebase events on component mount
+  useEffect(() => {
+    const unsubscribe = subscribeToEvents((firebaseEvents) => {
+      setEvents(firebaseEvents)
+      setLoading(false)
+    })
+
+    return () => unsubscribe()
+  }, [])
+
   const categoryColors = {
     meeting: "bg-blue-100 text-blue-800 border-blue-200",
     deadline: "bg-red-100 text-red-800 border-red-200",
@@ -118,40 +123,52 @@ export function AdminEventCalendar() {
     return events.filter((event) => selectedCategory === "all" || event.category === selectedCategory)
   }, [events, selectedCategory])
 
-  const addEvent = () => {
+  const handleAddEvent = async () => {
     if (!newEvent.title || !newEvent.startDate) return
 
-    const startDate = new Date(newEvent.startDate)
-    const endDate = newEvent.endDate ? new Date(newEvent.endDate) : startDate
+    try {
+      const startDate = new Date(newEvent.startDate)
+      const endDate = newEvent.endDate ? new Date(newEvent.endDate) : startDate
 
-    const event: Event = {
-      id: Date.now().toString(),
-      title: newEvent.title,
-      description: newEvent.description,
-      startDate,
-      endDate,
-      startTime: newEvent.startTime || "09:00",
-      endTime: newEvent.endTime || "10:00",
-      category: newEvent.category,
-      location: newEvent.location,
+      const event: AdminEvent = {
+        id: "", // Will be set by Firestore
+        title: newEvent.title,
+        description: newEvent.description,
+        startDate,
+        endDate,
+        startTime: newEvent.startTime || "09:00",
+        endTime: newEvent.endTime || "10:00",
+        category: newEvent.category,
+        location: newEvent.location,
+      }
+
+      await addEvent(event)
+
+      // Reset form
+      setNewEvent({
+        title: "",
+        description: "",
+        startDate: "",
+        endDate: "",
+        startTime: "",
+        endTime: "",
+        category: "meeting",
+        location: "",
+      })
+      setIsAddEventOpen(false)
+    } catch (error) {
+      console.error("Failed to add event:", error)
+      // You could add a toast notification here
     }
-
-    setEvents([...events, event])
-    setNewEvent({
-      title: "",
-      description: "",
-      startDate: "",
-      endDate: "",
-      startTime: "",
-      endTime: "",
-      category: "meeting",
-      location: "",
-    })
-    setIsAddEventOpen(false)
   }
 
-  const removeEvent = (eventId: string) => {
-    setEvents(events.filter((event) => event.id !== eventId))
+  const handleRemoveEvent = async (eventId: string) => {
+    try {
+      await deleteEvent(eventId)
+    } catch (error) {
+      console.error("Failed to delete event:", error)
+      // You could add a toast notification here
+    }
   }
 
   const isMultiDayEvent = (event: Event) => {
@@ -264,7 +281,7 @@ export function AdminEventCalendar() {
         <MonthView
           currentDate={currentDate}
           events={filteredEvents}
-          onRemoveEvent={removeEvent}
+          onRemoveEvent={handleRemoveEvent}
           categoryColors={categoryColors}
           isDateInEventRange={isDateInEventRange}
           isMultiDayEvent={isMultiDayEvent}
@@ -279,7 +296,7 @@ export function AdminEventCalendar() {
         <WeekView
           currentDate={currentDate}
           events={filteredEvents}
-          onRemoveEvent={removeEvent}
+          onRemoveEvent={handleRemoveEvent}
           categoryColors={categoryColors}
           isDateInEventRange={isDateInEventRange}
         />
@@ -289,7 +306,7 @@ export function AdminEventCalendar() {
         <DayView
           currentDate={currentDate}
           events={filteredEvents}
-          onRemoveEvent={removeEvent}
+          onRemoveEvent={handleRemoveEvent}
           categoryColors={categoryColors}
           isDateInEventRange={isDateInEventRange}
         />
@@ -297,6 +314,26 @@ export function AdminEventCalendar() {
     } else {
       return <YearView currentDate={currentDate} events={filteredEvents} isDateInEventRange={isDateInEventRange} />
     }
+  }
+
+  // Show loading state while Firebase data is loading
+  if (loading) {
+    return (
+      <div className="flex flex-col space-y-2 w-full h-full min-h-screen">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <Calendar className="h-4 w-4 text-primary" />
+            <h1 className="text-lg font-semibold text-foreground">Event Management</h1>
+          </div>
+        </div>
+        <div className="flex items-center justify-center h-64">
+          <div className="text-center">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-2"></div>
+            <p className="text-muted-foreground">Loading events...</p>
+          </div>
+        </div>
+      </div>
+    )
   }
 
   return (
@@ -408,7 +445,7 @@ export function AdminEventCalendar() {
                   placeholder="Event location"
                 />
               </div>
-              <Button onClick={addEvent} className="w-full">
+              <Button onClick={handleAddEvent} className="w-full">
                 Add Event
               </Button>
             </div>

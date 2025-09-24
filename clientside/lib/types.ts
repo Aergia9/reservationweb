@@ -1,0 +1,84 @@
+// Shared types for Firebase events
+export interface FirebaseEvent {
+  id: string;
+  title: string;
+  description: string;
+  startDate: string; // ISO string for Firebase compatibility
+  endDate: string; // ISO string for Firebase compatibility
+  startTime: string;
+  endTime: string;
+  category: "meeting" | "deadline" | "event" | "reminder";
+  location?: string;
+  price?: number; // For client-side display
+  image?: string; // For client-side display
+  includes?: string[]; // For client-side display
+  duration?: string; // For client-side display
+  eventType?: string; // For client-side display
+  minGuests?: number; // For client-side display
+  maxGuests?: number; // For client-side display
+  createdAt: string; // ISO string
+  updatedAt: string; // ISO string
+}
+
+// Client-side specific event interface (extends Firebase event)
+export interface ClientEvent extends FirebaseEvent {
+  // All fields from FirebaseEvent are available
+  // Additional computed properties can be added here if needed
+}
+
+// Existing client interfaces for backward compatibility
+export interface DiningRoom {
+  id: number;
+  name: string;
+  price: number;
+  image: string;
+  description: string;
+  amenities: string[];
+  maxGuests: number;
+  size: string;
+  style: string;
+}
+
+export interface SpecialEvent {
+  id: number;
+  name: string;
+  price: number;
+  image: string;
+  description: string;
+  includes: string[];
+  duration: string;
+  eventType: string;
+  minGuests: number;
+}
+
+// Utility function to convert Firebase event to legacy SpecialEvent format
+export const firebaseToSpecialEvent = (firebaseEvent: FirebaseEvent, index: number): SpecialEvent => ({
+  id: index + 1000, // Offset to avoid conflicts with hardcoded events
+  name: firebaseEvent.title,
+  price: firebaseEvent.price || 100, // Default price if not set
+  image: firebaseEvent.image || "/placeholder.svg",
+  description: firebaseEvent.description,
+  includes: firebaseEvent.includes || ["Event Access", "Basic Service"],
+  duration: firebaseEvent.duration || calculateDuration(firebaseEvent.startTime, firebaseEvent.endTime),
+  eventType: firebaseEvent.eventType || firebaseEvent.category,
+  minGuests: firebaseEvent.minGuests || 1,
+});
+
+// Helper function to calculate duration from start and end times
+const calculateDuration = (startTime: string, endTime: string): string => {
+  const start = new Date(`2000-01-01T${startTime}`);
+  const end = new Date(`2000-01-01T${endTime}`);
+  const diffMs = end.getTime() - start.getTime();
+  const diffHours = diffMs / (1000 * 60 * 60);
+  
+  if (diffHours < 1) {
+    const diffMinutes = Math.round(diffMs / (1000 * 60));
+    return `${diffMinutes} minutes`;
+  } else if (diffHours === 1) {
+    return "1 hour";
+  } else if (diffHours % 1 === 0) {
+    return `${diffHours} hours`;
+  } else {
+    return `${diffHours.toFixed(1)} hours`;
+  }
+};
