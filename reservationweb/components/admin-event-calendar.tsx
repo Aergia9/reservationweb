@@ -1,6 +1,7 @@
 "use client"
 
 import type React from "react"
+import { Timestamp } from 'firebase/firestore'
 
 import { useState, useMemo } from "react"
 import { Button } from "@/components/ui/button"
@@ -13,6 +14,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Calendar, ChevronLeft, ChevronRight, Plus, Filter, Trash2, Clock, MapPin } from "lucide-react"
 import { cn } from "@/lib/utils"
+import { eventService } from '@/services/event-service'
 
 type ViewMode = "day" | "week" | "month" | "year"
 
@@ -28,6 +30,10 @@ type Event = {
   endTime: string
   category: "meeting" | "deadline" | "event" | "reminder"
   location?: string
+  price?: number
+  includes?: string[]
+  minGuests?: number
+  isSpecialEvent?: boolean
 }
 
 const mockEvents: Event[] = [
@@ -105,6 +111,10 @@ export function AdminEventCalendar() {
     endTime: "",
     category: "meeting" as Event["category"],
     location: "",
+    price: "",
+    includes: "",
+    minGuests: "",
+    eventType: ""
   })
 
   const categoryColors = {
@@ -118,36 +128,52 @@ export function AdminEventCalendar() {
     return events.filter((event) => selectedCategory === "all" || event.category === selectedCategory)
   }, [events, selectedCategory])
 
-  const addEvent = () => {
-    if (!newEvent.title || !newEvent.startDate) return
-
-    const startDate = new Date(newEvent.startDate)
-    const endDate = newEvent.endDate ? new Date(newEvent.endDate) : startDate
-
-    const event: Event = {
-      id: Date.now().toString(),
-      title: newEvent.title,
-      description: newEvent.description,
-      startDate,
-      endDate,
-      startTime: newEvent.startTime || "09:00",
-      endTime: newEvent.endTime || "10:00",
-      category: newEvent.category,
-      location: newEvent.location,
+  const addEvent = async () => {
+    if (!newEvent.title || !newEvent.startDate || !newEvent.startTime || !newEvent.price) {
+      alert("Please fill in all required fields");
+      return;
     }
 
-    setEvents([...events, event])
-    setNewEvent({
-      title: "",
-      description: "",
-      startDate: "",
-      endDate: "",
-      startTime: "",
-      endTime: "",
-      category: "meeting",
-      location: "",
-    })
-    setIsAddEventOpen(false)
+    try {
+      const eventData = {
+        name: newEvent.title,
+        description: newEvent.description || '',
+        price: parseFloat(newEvent.price),
+        image: "/placeholder.svg", // Default image
+        includes: newEvent.includes ? newEvent.includes.split(',').map(item => item.trim()) : [],
+        duration: `${newEvent.startTime} - ${newEvent.endTime}`,
+        eventType: newEvent.eventType || "General",
+        minGuests: parseInt(newEvent.minGuests) || 1,
+      };
+
+      console.log('Sending event data:', eventData); // Debug log
+
+      // Add to Firebase
+      const result = await eventService.addEvent(eventData);
+      console.log("Event added successfully:", result);
+
+      // Reset form and show success
+      setNewEvent({
+        title: "",
+        description: "",
+        startDate: "",
+        endDate: "",
+        startTime: "",
+        endTime: "",
+        category: "event",
+        location: "",
+        price: "",
+        includes: "",
+        minGuests: "",
+        eventType: ""
+      })
+      setIsAddEventOpen(false);
+      alert("Event added successfully!")
+
+    } catch (error) {
+      console.error("Error adding event:", error);
+      alert("Failed to add event. Please check console for details.");
+    }
   }
 
   const removeEvent = (eventId: string) => {
@@ -408,6 +434,51 @@ export function AdminEventCalendar() {
                   placeholder="Event location"
                 />
               </div>
+
+              {/* Show these fields only when category is "event" */}
+              {newEvent.category === "event" && (
+                <>
+                  <div>
+                    <Label htmlFor="price">Price per Person</Label>
+                    <Input
+                      id="price"
+                      type="number"
+                      value={newEvent.price}
+                      onChange={(e) => setNewEvent({ ...newEvent, price: e.target.value })}
+                      placeholder="Price per person"
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="includes">Includes (comma-separated)</Label>
+                    <Textarea
+                      id="includes"
+                      value={newEvent.includes}
+                      onChange={(e) => setNewEvent({ ...newEvent, includes: e.target.value })}
+                      placeholder="Item 1, Item 2, Item 3..."
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="minGuests">Minimum Guests</Label>
+                    <Input
+                      id="minGuests"
+                      type="number"
+                      value={newEvent.minGuests}
+                      onChange={(e) => setNewEvent({ ...newEvent, minGuests: e.target.value })}
+                      placeholder="Minimum number of guests"
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="eventType">Event Type</Label>
+                    <Input
+                      id="eventType"
+                      value={newEvent.eventType}
+                      onChange={(e) => setNewEvent({ ...newEvent, eventType: e.target.value })}
+                      placeholder="e.g., Culinary Experience, Entertainment"
+                    />
+                  </div>
+                </>
+              )}
+
               <Button onClick={addEvent} className="w-full">
                 Add Event
               </Button>

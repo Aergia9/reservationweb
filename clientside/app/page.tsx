@@ -1,8 +1,9 @@
 "use client"
 
 import type React from "react"
+import { useEffect, useState } from "react"
+import { Timestamp } from 'firebase/firestore'
 
-import { useState } from "react"
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -10,6 +11,9 @@ import { MapPin, Users, Clock } from "lucide-react"
 import RoomBookingPopup from "@/components/room-booking-popup"
 import { LoginForm } from "@/components/login-popup"
 import { Dialog, DialogContent } from "@/components/ui/dialog"
+import RoomDetailsPopup from "@/components/room-details-popup"
+import { eventService } from '../services/event-service'
+import type { SpecialEvent } from '../types/event'
 
 interface DiningRoom {
   id: number
@@ -23,76 +27,57 @@ interface DiningRoom {
   style: string
 }
 
-interface SpecialEvent {
-  id: number
-  name: string
-  price: number
-  image: string
-  description: string
-  includes: string[]
-  duration: string
-  eventType: string
-  minGuests: number
-}
-
-const diningRooms: DiningRoom[] = [
-  {
-    id: 1,
-    name: "Grand Ballroom",
-    price: 1200,
-    image: "/luxury-ocean-view-hotel.png",
-    description:
-      "Elegant ballroom perfect for large dinner events and celebrations. Features crystal chandeliers, hardwood floors, and panoramic city views.",
-    amenities: ["Crystal Chandeliers", "Dance Floor", "Sound System", "City Views"],
-    maxGuests: 150,
-    size: "2,500 sq ft",
-    style: "Elegant & Formal",
-  },
-  {
-    id: 2,
-    name: "Executive Dining Room",
-    price: 800,
-    image: "/placeholder-k45u6.png",
-    description:
-      "Sophisticated dining space ideal for corporate dinner events and business gatherings. Features modern decor and state-of-the-art AV equipment.",
-    amenities: ["AV Equipment", "Projector Screen", "WiFi", "Modern Decor"],
-    maxGuests: 50,
-    size: "1,200 sq ft",
-    style: "Modern & Professional",
-  },
-]
-
-const specialEvents: SpecialEvent[] = [
-  {
-    id: 1,
-    name: "Wine Tasting Dinner",
-    price: 150,
-    image: "/placeholder-k45u6.png",
-    description:
-      "An exquisite evening featuring a 5-course dinner paired with premium wines from our sommelier's selection.",
-    includes: ["5-Course Dinner", "Wine Pairings", "Sommelier Service", "Welcome Cocktail"],
-    duration: "3 hours",
-    eventType: "Culinary Experience",
-    minGuests: 8,
-  },
-  {
-    id: 2,
-    name: "Live Jazz Dinner",
-    price: 120,
-    image: "/placeholder-59hss.png",
-    description: "Enjoy a sophisticated dinner accompanied by live jazz performances in an intimate setting.",
-    includes: ["3-Course Dinner", "Live Jazz Band", "Cocktail Service", "Reserved Seating"],
-    duration: "2.5 hours",
-    eventType: "Entertainment",
-    minGuests: 4,
-  },
-]
-
 export default function ReservationPage() {
   const [selectedRoom, setSelectedRoom] = useState<DiningRoom | null>(null)
   const [selectedEvent, setSelectedEvent] = useState<SpecialEvent | null>(null)
   const [isDialogOpen, setIsDialogOpen] = useState(false)
   const [isLoginOpen, setIsLoginOpen] = useState(false)
+  const [selectedRoomDetails, setSelectedRoomDetails] = useState<DiningRoom | null>(null)
+  const [isRoomDetailsOpen, setIsRoomDetailsOpen] = useState(false)
+  const [specialEvents, setSpecialEvents] = useState<SpecialEvent[]>([])
+  const [isLoading, setIsLoading] = useState(true)
+
+  const diningRooms: DiningRoom[] = [
+    {
+      id: 1,
+      name: "Grand Ballroom",
+      price: 1200,
+      image: "/luxury-ocean-view-hotel.png",
+      description:
+        "Elegant ballroom perfect for large dinner events and celebrations. Features crystal chandeliers, hardwood floors, and panoramic city views.",
+      amenities: ["Crystal Chandeliers", "Dance Floor", "Sound System", "City Views"],
+      maxGuests: 150,
+      size: "2,500 sq ft",
+      style: "Elegant & Formal",
+    },
+    {
+      id: 2,
+      name: "Executive Dining Room",
+      price: 800,
+      image: "/placeholder-k45u6.png",
+      description:
+        "Sophisticated dining space ideal for corporate dinner events and business gatherings. Features modern decor and state-of-the-art AV equipment.",
+      amenities: ["AV Equipment", "Projector Screen", "WiFi", "Modern Decor"],
+      maxGuests: 50,
+      size: "1,200 sq ft",
+      style: "Modern & Professional",
+    },
+  ]
+
+  useEffect(() => {
+    const loadEvents = async () => {
+      try {
+        const events = await eventService.getEvents()
+        setSpecialEvents(events)
+      } catch (error) {
+        console.error('Error loading events:', error)
+      } finally {
+        setIsLoading(false)
+      }
+    }
+
+    loadEvents()
+  }, [])
 
   const handleRoomClick = (room: DiningRoom) => {
     setSelectedRoom(room)
@@ -114,6 +99,11 @@ export default function ReservationPage() {
       console.log("Special event booking submitted for:", selectedEvent?.name)
     }
     setIsDialogOpen(false)
+  }
+
+  const handleRoomDetailsClick = (room: DiningRoom) => {
+    setSelectedRoomDetails(room)
+    setIsRoomDetailsOpen(true)
   }
 
   return (
@@ -166,7 +156,6 @@ export default function ReservationPage() {
             <Card
               key={`room-${room.id}`}
               className="w-full max-w-sm overflow-hidden cursor-pointer transition-all duration-300 hover:shadow-lg hover:scale-105"
-              onClick={() => handleRoomClick(room)}
             >
               <div className="relative">
                 <img src={room.image || "/placeholder.svg"} alt={room.name} className="w-full h-48 object-cover" />
@@ -177,7 +166,7 @@ export default function ReservationPage() {
                 <p className="text-muted-foreground mb-4 line-clamp-2">{room.description}</p>
                 <div className="flex items-center justify-between">
                   <span className="text-sm text-muted-foreground">Up to {room.maxGuests} guests</span>
-                  <Button variant="outline" size="sm">
+                  <Button variant="outline" size="sm" onClick={() => handleRoomDetailsClick(room)}>
                     View Details
                   </Button>
                 </div>
@@ -198,44 +187,56 @@ export default function ReservationPage() {
             </p>
           </div>
 
-          <div className="flex flex-wrap justify-center gap-8">
-            {specialEvents.map((event) => (
-              <Card
-                key={`event-${event.id}`}
-                className="w-full max-w-sm overflow-hidden cursor-pointer transition-all duration-300 hover:shadow-lg hover:scale-105"
-                onClick={() => handleEventClick(event)}
-              >
-                <div className="relative">
-                  <img src={event.image || "/placeholder.svg"} alt={event.name} className="w-full h-48 object-cover" />
-                  <Badge className="absolute top-4 right-4 bg-secondary text-secondary-foreground">
-                    ${event.price}/person
-                  </Badge>
-                  <div className="absolute bottom-4 left-4">
-                    <Badge variant="outline" className="bg-white/90 text-black">
-                      {event.eventType}
+          {isLoading ? (
+            <div className="text-center py-8">
+              <p className="text-lg text-muted-foreground">Loading events...</p>
+            </div>
+          ) : (
+            <div className="flex flex-wrap justify-center gap-8">
+              {specialEvents.map((event) => (
+                <Card
+                  key={`event-${event.id}`}
+                  className="w-full max-w-sm overflow-hidden cursor-pointer transition-all duration-300 hover:shadow-lg hover:scale-105"
+                  onClick={() => handleEventClick(event)}
+                >
+                  <div className="relative">
+                    <img src={event.image || "/placeholder.svg"} alt={event.name} className="w-full h-48 object-cover" />
+                    <Badge className="absolute top-4 right-4 bg-secondary text-secondary-foreground">
+                      ${event.price}/person
                     </Badge>
+                    <div className="absolute bottom-4 left-4">
+                      <Badge variant="outline" className="bg-white/90 text-black">
+                        {event.eventType}
+                      </Badge>
+                    </div>
                   </div>
-                </div>
-                <CardContent className="p-6">
-                  <h3 className="text-xl font-semibold mb-2">{event.name}</h3>
-                  <p className="text-muted-foreground mb-4 line-clamp-2">{event.description}</p>
-                  <div className="flex items-center justify-between text-sm text-muted-foreground mb-2">
-                    <span className="flex items-center gap-1">
-                      <Clock className="h-4 w-4" />
-                      {event.duration}
-                    </span>
-                    <span className="flex items-center gap-1">
-                      <Users className="h-4 w-4" />
-                      Min {event.minGuests} guests
-                    </span>
-                  </div>
-                  <Button variant="outline" size="sm" className="w-full bg-transparent">
-                    Book Event
-                  </Button>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
+                  <CardContent className="p-6">
+                    <h3 className="text-xl font-semibold mb-2">{event.name}</h3>
+                    <p className="text-muted-foreground mb-4 line-clamp-2">{event.description}</p>
+                    <div className="flex items-center justify-between text-sm text-muted-foreground mb-2">
+                      <span className="flex items-center gap-1">
+                        <Clock className="h-4 w-4" />
+                        {event.duration instanceof Timestamp ? 
+                          event.duration.toDate().toLocaleString('en-US', {
+                            hour: 'numeric',
+                            minute: 'numeric',
+                            hour12: true
+                          }) 
+                          : 'Time not set'}
+                      </span>
+                      <span className="flex items-center gap-1">
+                        <Users className="h-4 w-4" />
+                        Min {event.minGuests} guests
+                      </span>
+                    </div>
+                    <Button variant="outline" size="sm" className="w-full bg-transparent">
+                      Book Event
+                    </Button>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          )}
         </div>
       </div>
 
@@ -248,7 +249,7 @@ export default function ReservationPage() {
       />
 
       <Dialog open={isLoginOpen} onOpenChange={setIsLoginOpen}>
-        <DialogContent 
+        <DialogContent
           className="w-full h-full max-w-[1100px] max-h-[95vh] p-0 flex items-center justify-center sm:w-[98vw] sm:h-[98vh] sm:max-w-[1100px] sm:max-h-[95vh]"
           style={{ minWidth: 0, minHeight: 0 }}
         >
@@ -257,6 +258,12 @@ export default function ReservationPage() {
           </div>
         </DialogContent>
       </Dialog>
+
+      <RoomDetailsPopup
+        room={selectedRoomDetails}
+        isOpen={isRoomDetailsOpen}
+        onClose={() => setIsRoomDetailsOpen(false)}
+      />
     </div>
   )
 }
