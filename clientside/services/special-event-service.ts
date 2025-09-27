@@ -2,7 +2,7 @@ import { collection, getDocs, query, orderBy, onSnapshot } from 'firebase/firest
 import { db } from '../lib/firebase';
 import { SpecialEvent } from '../lib/types';
 
-const SPECIAL_EVENTS_COLLECTION = 'events';
+const SPECIAL_EVENTS_COLLECTION = 'event';
 
 // Helper function to convert Firebase document to SpecialEvent
 const convertFirebaseToSpecialEvent = (doc: any, index: number): SpecialEvent => {

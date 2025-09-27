@@ -13,7 +13,7 @@ import {
 import { db } from "./firebase";
 import { FirebaseEvent, AdminEvent, adminEventToFirebase, firebaseToAdminEvent } from "./types";
 
-const EVENTS_COLLECTION = "events";
+const EVENTS_COLLECTION = "event";
 
 // Add a new event to Firestore
 export const addEvent = async (adminEvent: AdminEvent): Promise<string> => {

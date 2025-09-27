@@ -3,7 +3,7 @@ import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { getAuth } from 'firebase/auth';
 import { db, storage } from '@/lib/firebase';
 
-const SPECIAL_EVENTS_COLLECTION = 'events';
+const SPECIAL_EVENTS_COLLECTION = 'event';
 
 export interface SpecialEventData {
   name: string;
