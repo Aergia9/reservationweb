@@ -12,6 +12,7 @@ import { LoginForm } from "@/components/login-popup"
 import { Dialog, DialogContent } from "@/components/ui/dialog"
 import { subscribeToClientEvents } from "@/lib/eventService"
 import { DiningRoom, SpecialEvent } from "@/lib/types"
+import { specialEventService } from "../services/special-event-service"
 
 
 const diningRooms: DiningRoom[] = [
@@ -75,10 +76,10 @@ export default function ReservationPage() {
   const [firebaseEvents, setFirebaseEvents] = useState<SpecialEvent[]>([])
   const [loading, setLoading] = useState(true)
 
-  // Subscribe to Firebase events on component mount
+  // Subscribe to special events for real-time updates
   useEffect(() => {
-    const unsubscribe = subscribeToClientEvents((events) => {
-      setFirebaseEvents(events)
+    const unsubscribe = specialEventService.subscribeToSpecialEvents((event) => {
+      setFirebaseEvents(event)
       setLoading(false)
     })
 

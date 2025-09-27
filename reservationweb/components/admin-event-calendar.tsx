@@ -29,7 +29,7 @@ const mockEvents: Event[] = [
     id: "1",
     title: "Team Meeting",
     description: "Weekly team sync",
-    startDate: new Date(2024, 11, 15),
+         startDate: new Date(2024, 11, 15),
     endDate: new Date(2024, 11, 15),
     startTime: "09:00",
     endTime: "10:00",
@@ -92,15 +92,37 @@ export function AdminEventCalendar() {
   const [isYearEventsOpen, setIsYearEventsOpen] = useState(false)
   const [selectedYear, setSelectedYear] = useState<number | null>(null)
   const [newEvent, setNewEvent] = useState({
-    title: "",
+    name: "",
     description: "",
+    price: "",
+    image: "",
+    includes: "",
+    duration: "",
+    eventType: "",
+    minGuests: "",
     startDate: "",
-    endDate: "",
     startTime: "",
     endTime: "",
-    category: "meeting" as Event["category"],
-    location: "",
   })
+  const [selectedImageFile, setSelectedImageFile] = useState<File | null>(null)
+  const [imagePreview, setImagePreview] = useState<string>("")
+  const [isSubmitting, setIsSubmitting] = useState(false)
+
+  // Handle image file selection
+  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (file) {
+      if (file.size > 2 * 1024 * 1024) { // 2MB limit
+        alert("Image size should be less than 2MB")
+        return
+      }
+      
+      setSelectedImageFile(file)
+      // Create preview URL
+      const previewUrl = URL.createObjectURL(file)
+      setImagePreview(previewUrl)
+    }
+  }
 
   // Subscribe to Firebase events on component mount
   useEffect(() => {
@@ -124,41 +146,62 @@ export function AdminEventCalendar() {
   }, [events, selectedCategory])
 
   const handleAddEvent = async () => {
-    if (!newEvent.title || !newEvent.startDate) return
+    if (!newEvent.name || !newEvent.price) {
+      alert("Please fill in all required fields (Name and Price)")
+      return
+    }
 
+    setIsSubmitting(true)
     try {
-      const startDate = new Date(newEvent.startDate)
-      const endDate = newEvent.endDate ? new Date(newEvent.endDate) : startDate
+      // Import the special event service
+      const { specialEventService } = await import('@/services/special-event-service')
 
-      const event: AdminEvent = {
-        id: "", // Will be set by Firestore
-        title: newEvent.title,
+      // Create special event data - ensure all fields are properly typed
+      const specialEventData = {
+        name: newEvent.name,
         description: newEvent.description,
-        startDate,
-        endDate,
-        startTime: newEvent.startTime || "09:00",
-        endTime: newEvent.endTime || "10:00",
-        category: newEvent.category,
-        location: newEvent.location,
+        price: parseFloat(newEvent.price) || 0,
+        image: newEvent.image || "/placeholder.svg",
+        includes: newEvent.includes ? newEvent.includes.split(',').map(item => item.trim()).filter(item => item) : [],
+        duration: newEvent.duration || `${newEvent.startTime} - ${newEvent.endTime}`,
+        eventType: newEvent.eventType || "Special Event",
+        minGuests: parseInt(newEvent.minGuests) || 1,
+        eventDate: newEvent.startDate || undefined,
+        startTime: newEvent.startTime || undefined,
+        endTime: newEvent.endTime || undefined,
       }
 
-      await addEvent(event)
+      console.log('Submitting event data:', specialEventData)
+
+      // Add special event to Firebase (with image upload if provided)
+      const eventId = await specialEventService.addSpecialEvent(specialEventData, selectedImageFile || undefined)
+      
+      console.log('Event successfully added with ID:', eventId)
 
       // Reset form
       setNewEvent({
-        title: "",
+        name: "",
         description: "",
+        price: "",
+        image: "",
+        includes: "",
+        duration: "",
+        eventType: "",
+        minGuests: "",
         startDate: "",
-        endDate: "",
         startTime: "",
         endTime: "",
-        category: "meeting",
-        location: "",
       })
+      setSelectedImageFile(null)
+      setImagePreview("")
       setIsAddEventOpen(false)
+      alert("Special event added successfully!")
     } catch (error) {
-      console.error("Failed to add event:", error)
-      // You could add a toast notification here
+      console.error("Failed to add special event:", error)
+      const errorMessage = error instanceof Error ? error.message : "Unknown error occurred"
+      alert(`Failed to add event: ${errorMessage}`)
+    } finally {
+      setIsSubmitting(false)
     }
   }
 
@@ -343,28 +386,30 @@ export function AdminEventCalendar() {
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
           <Calendar className="h-4 w-4 text-primary" />
-          <h1 className="text-lg font-semibold text-foreground">Event Management</h1>
+          <h1 className="text-lg font-semibold text-foreground">Special Events Management</h1>
         </div>
 
         <Dialog open={isAddEventOpen} onOpenChange={setIsAddEventOpen}>
           <DialogTrigger asChild>
             <Button size="sm" className="bg-primary hover:bg-primary/90">
               <Plus className="h-3 w-3 mr-1" />
-              Add Event
+              Add Special Event
             </Button>
           </DialogTrigger>
           <DialogContent className="sm:max-w-md">
             <DialogHeader>
-              <DialogTitle>Add New Event</DialogTitle>
+              <DialogTitle>Add New Special Event</DialogTitle>
+              <p className="text-sm text-muted-foreground">Create a special event that will appear on the client website</p>
             </DialogHeader>
             <div className="space-y-4">
               <div>
-                <Label htmlFor="title">Title</Label>
+                <Label htmlFor="name">Event Name *</Label>
                 <Input
-                  id="title"
-                  value={newEvent.title}
-                  onChange={(e) => setNewEvent({ ...newEvent, title: e.target.value })}
-                  placeholder="Event title"
+                  id="name"
+                  value={newEvent.name}
+                  onChange={(e) => setNewEvent({ ...newEvent, name: e.target.value })}
+                  placeholder="Special event name"
+                  required
                 />
               </div>
               <div>
@@ -378,47 +423,97 @@ export function AdminEventCalendar() {
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <Label htmlFor="startDate">Start Date</Label>
+                  <Label htmlFor="price">Price per Person *</Label>
                   <Input
-                    id="startDate"
-                    type="date"
-                    value={newEvent.startDate}
-                    onChange={(e) => setNewEvent({ ...newEvent, startDate: e.target.value })}
+                    id="price"
+                    type="number"
+                    value={newEvent.price}
+                    onChange={(e) => setNewEvent({ ...newEvent, price: e.target.value })}
+                    placeholder="150"
+                    min="0"
+                    step="0.01"
+                    required
                   />
                 </div>
                 <div>
-                  <Label htmlFor="endDate">End Date (Optional)</Label>
+                  <Label htmlFor="minGuests">Minimum Guests</Label>
                   <Input
-                    id="endDate"
-                    type="date"
-                    value={newEvent.endDate}
-                    onChange={(e) => setNewEvent({ ...newEvent, endDate: e.target.value })}
-                    min={newEvent.startDate}
+                    id="minGuests"
+                    type="number"
+                    value={newEvent.minGuests}
+                    onChange={(e) => setNewEvent({ ...newEvent, minGuests: e.target.value })}
+                    placeholder="1"
+                    min="1"
                   />
                 </div>
               </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <Label htmlFor="category">Category</Label>
-                  <Select
-                    value={newEvent.category}
-                    onValueChange={(value: Event["category"]) => setNewEvent({ ...newEvent, category: value })}
-                  >
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="meeting">Meeting</SelectItem>
-                      <SelectItem value="deadline">Deadline</SelectItem>
-                      <SelectItem value="event">Event</SelectItem>
-                      <SelectItem value="reminder">Reminder</SelectItem>
-                    </SelectContent>
-                  </Select>
+              <div>
+                <Label htmlFor="eventType">Event Type</Label>
+                <Input
+                  id="eventType"
+                  value={newEvent.eventType}
+                  onChange={(e) => setNewEvent({ ...newEvent, eventType: e.target.value })}
+                  placeholder="e.g., Culinary Experience, Entertainment"
+                />
+              </div>
+              <div>
+                <Label htmlFor="includes">What's Included (comma-separated)</Label>
+                <Textarea
+                  id="includes"
+                  value={newEvent.includes}
+                  onChange={(e) => setNewEvent({ ...newEvent, includes: e.target.value })}
+                  placeholder="5-Course Dinner, Wine Pairings, Sommelier Service"
+                />
+              </div>
+              <div>
+                <Label htmlFor="duration">Duration</Label>
+                <Input
+                  id="duration"
+                  value={newEvent.duration}
+                  onChange={(e) => setNewEvent({ ...newEvent, duration: e.target.value })}
+                  placeholder="3 hours"
+                />
+              </div>
+              <div>
+                <Label htmlFor="imageFile">Event Image</Label>
+                <Input
+                  id="imageFile"
+                  type="file"
+                  accept="image/*"
+                  onChange={handleImageChange}
+                  className="mb-2"
+                />
+                {imagePreview && (
+                  <div className="mt-2">
+                    <img 
+                      src={imagePreview} 
+                      alt="Preview" 
+                      className="w-full h-32 object-cover rounded-lg border"
+                    />
+                  </div>
+                )}
+                <div className="mt-2">
+                  <Label htmlFor="imageUrl">Or enter Image URL</Label>
+                  <Input
+                    id="imageUrl"
+                    value={newEvent.image}
+                    onChange={(e) => setNewEvent({ ...newEvent, image: e.target.value })}
+                    placeholder="/placeholder.svg"
+                  />
                 </div>
+              </div>
+              <div>
+                <Label htmlFor="startDate">Event Date (for reference)</Label>
+                <Input
+                  id="startDate"
+                  type="date"
+                  value={newEvent.startDate}
+                  onChange={(e) => setNewEvent({ ...newEvent, startDate: e.target.value })}
+                />
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <Label htmlFor="startTime">Start Time</Label>
+                  <Label htmlFor="startTime">Start Time (for reference)</Label>
                   <Input
                     id="startTime"
                     type="time"
@@ -427,7 +522,7 @@ export function AdminEventCalendar() {
                   />
                 </div>
                 <div>
-                  <Label htmlFor="endTime">End Time</Label>
+                  <Label htmlFor="endTime">End Time (for reference)</Label>
                   <Input
                     id="endTime"
                     type="time"
@@ -436,17 +531,8 @@ export function AdminEventCalendar() {
                   />
                 </div>
               </div>
-              <div>
-                <Label htmlFor="location">Location (Optional)</Label>
-                <Input
-                  id="location"
-                  value={newEvent.location}
-                  onChange={(e) => setNewEvent({ ...newEvent, location: e.target.value })}
-                  placeholder="Event location"
-                />
-              </div>
-              <Button onClick={handleAddEvent} className="w-full">
-                Add Event
+              <Button onClick={handleAddEvent} className="w-full" disabled={isSubmitting}>
+                {isSubmitting ? "Adding Event..." : "Add Special Event"}
               </Button>
             </div>
           </DialogContent>

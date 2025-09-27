@@ -1,27 +1,23 @@
-// Import the functions you need from the SDKs you need
 import { initializeApp } from "firebase/app";
 import { getAuth } from "firebase/auth";
 import { getFirestore } from "firebase/firestore";
+import { getStorage } from "firebase/storage";
 
-// Your web app's Firebase configuration
-// For Firebase JS SDK v9-compat and later, measurementId is optional
 const firebaseConfig = {
-  apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY || "demo-api-key",
-  authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN || "demo-project.firebaseapp.com",
-  projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID || "demo-project",
-  storageBucket: process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET || "demo-project.appspot.com",
-  messagingSenderId: process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID || "123456789",
-  appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID || "1:123456789:web:abcdef123456",
-  measurementId: process.env.NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID || "G-ABCDEF123"
-};
+  apiKey: "AIzaSyD2sDArKX1-hESo3afXs8BdECi1yDk_ypE",
+  authDomain: "reservationweb-4b61a.firebaseapp.com",
+  projectId: "reservationweb-4b61a",
+  storageBucket: "reservationweb-4b61a.firebasestorage.app",
+  messagingSenderId: "384156096887",
+  appId: "1:384156096887:web:d537ee74d242d8136ee972",
+  measurementId: "G-RC36JZD21V"
+}
 
-// Initialize Firebase
 const app = initializeApp(firebaseConfig);
+const auth = getAuth(app);
+const firestore = getFirestore(app);
+const storage = getStorage(app);
+const db = getFirestore(app);
 
-// Initialize Firebase Authentication and get a reference to the service
-export const auth = getAuth(app);
+export { auth, firestore, storage, db };
 
-// Initialize Cloud Firestore and get a reference to the service
-export const db = getFirestore(app);
-
-export default app;
