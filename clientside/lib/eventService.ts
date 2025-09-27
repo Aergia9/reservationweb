@@ -9,7 +9,7 @@ import {
 import { db } from "./firebase";
 import { FirebaseEvent, SpecialEvent, firebaseToSpecialEvent } from "./types";
 
-const EVENTS_COLLECTION = "events";
+const EVENTS_COLLECTION = "event";
 
 // Get all events from Firestore for client display
 export const getClientEvents = async (): Promise<SpecialEvent[]> => {
