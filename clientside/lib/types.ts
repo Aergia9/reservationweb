@@ -1,3 +1,5 @@
+import { Timestamp } from 'firebase/firestore';
+
 // Shared types for Firebase events
 export interface FirebaseEvent {
   id: string;
@@ -40,28 +42,30 @@ export interface DiningRoom {
 }
 
 export interface SpecialEvent {
-  id: number;
+  id: string;
   name: string;
   price: number;
   image: string;
   description: string;
   includes: string[];
-  duration: string;
+  duration: Timestamp;
   eventType: string;
   minGuests: number;
+  createdAt?: Timestamp;
 }
 
 // Utility function to convert Firebase event to legacy SpecialEvent format
 export const firebaseToSpecialEvent = (firebaseEvent: FirebaseEvent, index: number): SpecialEvent => ({
-  id: index + 1000, // Offset to avoid conflicts with hardcoded events
+  id: `event_${index + 1000}`, // Use string ID to match interface
   name: firebaseEvent.title,
   price: firebaseEvent.price || 100, // Default price if not set
   image: firebaseEvent.image || "/placeholder.svg",
   description: firebaseEvent.description,
   includes: firebaseEvent.includes || ["Event Access", "Basic Service"],
-  duration: firebaseEvent.duration || calculateDuration(firebaseEvent.startTime, firebaseEvent.endTime),
+  duration: Timestamp.fromDate(new Date(`2000-01-01T${firebaseEvent.startTime || '00:00'}`)), // Convert to Timestamp
   eventType: firebaseEvent.eventType || firebaseEvent.category,
   minGuests: firebaseEvent.minGuests || 1,
+  createdAt: Timestamp.fromDate(new Date(firebaseEvent.createdAt)),
 });
 
 // Helper function to calculate duration from start and end times

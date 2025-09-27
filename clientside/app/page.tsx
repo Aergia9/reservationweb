@@ -13,6 +13,7 @@ import { Dialog, DialogContent } from "@/components/ui/dialog"
 import { subscribeToClientEvents } from "@/lib/eventService"
 import { DiningRoom, SpecialEvent } from "@/lib/types"
 import { specialEventService } from "../services/special-event-service"
+import { Timestamp } from 'firebase/firestore'
 
 
 const diningRooms: DiningRoom[] = [
@@ -44,25 +45,25 @@ const diningRooms: DiningRoom[] = [
 
 const specialEvents: SpecialEvent[] = [
   {
-    id: 1,
+    id: "event_1",
     name: "Wine Tasting Dinner",
     price: 150,
     image: "/placeholder-k45u6.png",
     description:
       "An exquisite evening featuring a 5-course dinner paired with premium wines from our sommelier's selection.",
     includes: ["5-Course Dinner", "Wine Pairings", "Sommelier Service", "Welcome Cocktail"],
-    duration: "3 hours",
+    duration: Timestamp.fromDate(new Date("2000-01-01T19:00:00")), // 3 hours from 7pm
     eventType: "Culinary Experience",
     minGuests: 8,
   },
   {
-    id: 2,
+    id: "event_2",
     name: "Live Jazz Dinner",
     price: 120,
     image: "/placeholder-59hss.png",
     description: "Enjoy a sophisticated dinner accompanied by live jazz performances in an intimate setting.",
     includes: ["3-Course Dinner", "Live Jazz Band", "Cocktail Service", "Reserved Seating"],
-    duration: "2.5 hours",
+    duration: Timestamp.fromDate(new Date("2000-01-01T19:30:00")), // 2.5 hours from 7:30pm
     eventType: "Entertainment",
     minGuests: 4,
   },
@@ -225,7 +226,14 @@ export default function ReservationPage() {
                   <div className="flex items-center justify-between text-sm text-muted-foreground mb-2">
                     <span className="flex items-center gap-1">
                       <Clock className="h-4 w-4" />
-                      {event.duration}
+                      {event.duration instanceof Timestamp 
+                        ? event.duration.toDate().toLocaleString('en-US', {
+                            hour: 'numeric',
+                            minute: 'numeric',
+                            hour12: true
+                          })
+                        : 'Time not set'
+                      }
                     </span>
                     <span className="flex items-center gap-1">
                       <Users className="h-4 w-4" />

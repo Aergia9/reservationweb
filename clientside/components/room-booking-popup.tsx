@@ -7,22 +7,12 @@ import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-
-interface DiningRoom {
-  id: number
-  name: string
-  price: number
-  image: string
-  description: string
-  amenities: string[]
-  maxGuests: number
-  size: string
-  style: string
-}
+import { Timestamp } from 'firebase/firestore'
+import { DiningRoom, SpecialEvent } from "@/lib/types"
 
 interface RoomBookingPopupProps {
   selectedRoom: DiningRoom | null
-  selectedEvent?: any // Accept special event as prop (optional for type safety)
+  selectedEvent: SpecialEvent | null
   isOpen: boolean
   onClose: () => void
   onSubmit: (e: React.FormEvent) => void
@@ -195,7 +185,15 @@ export default function RoomBookingPopup({ selectedRoom, selectedEvent, isOpen, 
                       <span className="font-medium">Type:</span> {selectedEvent.eventType}
                     </div>
                     <div>
-                      <span className="font-medium">Duration:</span> {selectedEvent.duration}
+                      <span className="font-medium">Duration:</span> {
+    selectedEvent.duration instanceof Timestamp ?
+    selectedEvent.duration.toDate().toLocaleString('en-US', {
+      hour: 'numeric',
+      minute: 'numeric',
+      hour12: true
+    })
+    : 'Time not set'
+  }
                     </div>
                     <div>
                       <span className="font-medium">Min Guests:</span> {selectedEvent.minGuests}

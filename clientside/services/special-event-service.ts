@@ -1,6 +1,7 @@
 import { collection, getDocs, query, orderBy, onSnapshot } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import { SpecialEvent } from '../lib/types';
+import { Timestamp } from 'firebase/firestore';
 
 const SPECIAL_EVENTS_COLLECTION = 'event';
 
@@ -8,15 +9,16 @@ const SPECIAL_EVENTS_COLLECTION = 'event';
 const convertFirebaseToSpecialEvent = (doc: any, index: number): SpecialEvent => {
   const data = doc.data();
   return {
-    id: index + 1000, // Convert string ID to number, with offset to avoid conflicts
+    id: doc.id || `event_${index}`, // Use document ID as string
     name: data.name || '',
     price: data.price || 0,
     image: data.image || '/placeholder.svg',
     description: data.description || '',
     includes: data.includes || [],
-    duration: data.duration || '',
+    duration: data.duration instanceof Timestamp ? data.duration : Timestamp.now(), // Ensure it's a Timestamp
     eventType: data.eventType || '',
     minGuests: data.minGuests || 1,
+    createdAt: data.createdAt instanceof Timestamp ? data.createdAt : undefined,
   };
 };
 
