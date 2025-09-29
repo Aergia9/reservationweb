@@ -4,28 +4,47 @@ import {
   onSnapshot,
   query,
   orderBy,
-  where
+  Timestamp
 } from "firebase/firestore";
 import { db } from "./firebase";
-import { FirebaseEvent, SpecialEvent, firebaseToSpecialEvent } from "./types";
+import { SpecialEvent } from "./types";
 
 const EVENTS_COLLECTION = "event";
 
 // Get all events from Firestore for client display
 export const getClientEvents = async (): Promise<SpecialEvent[]> => {
   try {
-    // Only get events of type "event" that are suitable for client booking
+    // Get all events from the collection
     const q = query(
       collection(db, EVENTS_COLLECTION), 
-      where("category", "==", "event"),
-      orderBy("startDate", "asc")
+      orderBy("createdAt", "desc")
     );
     const querySnapshot = await getDocs(q);
     const events: SpecialEvent[] = [];
     
     querySnapshot.forEach((doc) => {
-      const firebaseEvent = { id: doc.id, ...doc.data() } as FirebaseEvent;
-      events.push(firebaseToSpecialEvent(firebaseEvent, events.length));
+      const data = doc.data();
+      // Convert the new admin event structure to SpecialEvent
+      console.log('Raw Firebase data for event:', doc.id, data);
+      
+      const specialEvent: SpecialEvent = {
+        id: doc.id,
+        name: data.name || '',
+        price: data.price || 0,
+        image: data.image || '/placeholder.svg',
+        images: data.images || [], // Map the images array from Firebase
+        description: data.description || '',
+        includes: data.includes || [],
+        duration: data.duration || 'Available on request',
+        eventType: data.eventType || '',
+        minGuests: data.minGuests || 1,
+        startDate: data.startDate || null,
+        endDate: data.endDate || null,
+        createdAt: data.createdAt || Timestamp.now(),
+      };
+      
+      console.log('Mapped SpecialEvent:', specialEvent);
+      events.push(specialEvent);
     });
     
     console.log("Loaded", events.length, "client events from Firebase");
@@ -46,15 +65,28 @@ export const subscribeToClientEvents = (callback: (events: SpecialEvent[]) => vo
   try {
     const q = query(
       collection(db, EVENTS_COLLECTION), 
-      where("category", "==", "event"),
-      orderBy("startDate", "asc")
+      orderBy("createdAt", "desc")
     );
     
     return onSnapshot(q, (querySnapshot) => {
       const events: SpecialEvent[] = [];
       querySnapshot.forEach((doc) => {
-        const firebaseEvent = { id: doc.id, ...doc.data() } as FirebaseEvent;
-        events.push(firebaseToSpecialEvent(firebaseEvent, events.length));
+        const data = doc.data();
+        // Convert the new admin event structure to SpecialEvent
+        const specialEvent: SpecialEvent = {
+          id: doc.id,
+          name: data.name || '',
+          price: data.price || 0,
+          image: data.image || '/placeholder.svg',
+          images: data.images || [], // Map the images array from Firebase
+          description: data.description || '',
+          includes: data.includes || [],
+          duration: data.duration ? (typeof data.duration === 'string' ? Timestamp.now() : data.duration) : Timestamp.now(),
+          eventType: data.eventType || '',
+          minGuests: data.minGuests || 1,
+          createdAt: data.createdAt || Timestamp.now(),
+        };
+        events.push(specialEvent);
       });
       console.log("Real-time update: loaded", events.length, "client events from Firebase");
       callback(events);

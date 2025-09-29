@@ -46,11 +46,14 @@ export interface SpecialEvent {
   name: string;
   price: number;
   image: string;
+  images?: string[]; // Support for multiple images
   description: string;
   includes: string[];
-  duration: Timestamp;
+  duration: Timestamp | string;
   eventType: string;
   minGuests: number;
+  startDate?: string;
+  endDate?: string;
   createdAt?: Timestamp;
 }
 

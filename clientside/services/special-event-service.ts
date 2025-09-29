@@ -8,16 +8,21 @@ const SPECIAL_EVENTS_COLLECTION = 'event';
 // Helper function to convert Firebase document to SpecialEvent
 const convertFirebaseToSpecialEvent = (doc: any, index: number): SpecialEvent => {
   const data = doc.data();
+  console.log('Converting Firebase event:', doc.id, data);
+  
   return {
     id: doc.id || `event_${index}`, // Use document ID as string
     name: data.name || '',
     price: data.price || 0,
     image: data.image || '/placeholder.svg',
+    images: data.images || [], // Map the images array from Firebase
     description: data.description || '',
     includes: data.includes || [],
-    duration: data.duration instanceof Timestamp ? data.duration : Timestamp.now(), // Ensure it's a Timestamp
+    duration: typeof data.duration === 'string' ? data.duration : 'Available on request',
     eventType: data.eventType || '',
     minGuests: data.minGuests || 1,
+    startDate: data.startDate || null,
+    endDate: data.endDate || null,
     createdAt: data.createdAt instanceof Timestamp ? data.createdAt : undefined,
   };
 };
