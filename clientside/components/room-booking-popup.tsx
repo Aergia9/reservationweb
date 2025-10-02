@@ -1,13 +1,15 @@
 "use client"
 
-import React, { useState } from "react"
+import React, { useState, useEffect } from "react"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { Timestamp } from 'firebase/firestore'
+import { Timestamp, collection, addDoc } from 'firebase/firestore'
+import { User } from 'firebase/auth'
+import { db } from "@/lib/firebase"
 import { DiningRoom, SpecialEvent } from "@/lib/types"
 
 // Image Slider Component
@@ -232,9 +234,132 @@ interface RoomBookingPopupProps {
   isOpen: boolean
   onClose: () => void
   onSubmit: (e: React.FormEvent) => void
+  user: User | null
+  onLoginRequired: () => void
 }
 
-export default function RoomBookingPopup({ selectedRoom, selectedEvent, isOpen, onClose, onSubmit }: RoomBookingPopupProps) {
+export default function RoomBookingPopup({ selectedRoom, selectedEvent, isOpen, onClose, onSubmit, user, onLoginRequired }: RoomBookingPopupProps) {
+  const [formData, setFormData] = useState({
+    bookingDate: '',
+    bookingTime: '',
+    guests: '',
+    firstName: '',
+    lastName: '',
+    email: '',
+    phone: '',
+    specialRequests: ''
+  })
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState('')
+
+  // Auto-fill email when user is available
+  useEffect(() => {
+    if (user?.email && formData.email === '') {
+      setFormData(prev => ({
+        ...prev,
+        email: user.email || ''
+      }))
+    }
+  }, [user, formData.email])
+
+  // Reset form when dialog opens/closes
+  useEffect(() => {
+    if (!isOpen) {
+      setFormData({
+        bookingDate: '',
+        bookingTime: '',
+        guests: '',
+        firstName: '',
+        lastName: '',
+        email: user?.email || '',
+        phone: '',
+        specialRequests: ''
+      })
+      setError('')
+    }
+  }, [isOpen, user])
+
+  const formatDateDisplay = (dateStr: string) => {
+    if (!dateStr) return 'Date not set'
+    const date = new Date(dateStr)
+    return date.toLocaleDateString('id-ID', {
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric'
+    }).replace(/\//g, '-')
+  }
+
+  const isDateInRange = (selectedDate: string, startDate: string, endDate: string) => {
+    if (!selectedDate || !startDate || !endDate) return false
+    const selected = new Date(selectedDate)
+    const start = new Date(startDate)
+    const end = new Date(endDate)
+    return selected >= start && selected <= end
+  }
+
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+    const { id, value } = e.target
+    setFormData(prev => ({
+      ...prev,
+      [id]: value
+    }))
+  }
+
+  const handleBookingSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    
+    // Check if user is logged in
+    if (!user) {
+      onLoginRequired()
+      return
+    }
+
+    // Validate date range for events
+    if (selectedEvent && selectedEvent.startDate && selectedEvent.endDate) {
+      if (!isDateInRange(formData.bookingDate, selectedEvent.startDate, selectedEvent.endDate)) {
+        setError(`Booking date must be between ${formatDateDisplay(selectedEvent.startDate)} and ${formatDateDisplay(selectedEvent.endDate)}`)
+        return
+      }
+    }
+
+    setLoading(true)
+    setError('')
+
+    try {
+      // Prepare booking data
+      const bookingData = {
+        ...formData,
+        userId: user.uid,
+        userEmail: user.email,
+        bookingType: selectedRoom ? 'room' : 'event',
+        roomId: selectedRoom?.id || null,
+        roomName: selectedRoom?.name || null,
+        eventId: selectedEvent?.id || null,
+        eventName: selectedEvent?.name || null,
+        totalPrice: selectedRoom ? selectedRoom.price : selectedEvent?.price || 0,
+        status: 'pending',
+        createdAt: Timestamp.now(),
+        updatedAt: Timestamp.now()
+      }
+
+      // Save to Firestore
+      await addDoc(collection(db, 'booking'), bookingData)
+      
+      // Call original onSubmit for any additional logic
+      onSubmit(e)
+      
+      // Success - close modal
+      onClose()
+      
+      alert('Booking submitted successfully! We will contact you soon.')
+      
+    } catch (error) {
+      console.error('Error saving booking:', error)
+      setError('Failed to submit booking. Please try again.')
+    } finally {
+      setLoading(false)
+    }
+  }
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent
@@ -279,7 +404,7 @@ export default function RoomBookingPopup({ selectedRoom, selectedEvent, isOpen, 
                       <span className="font-medium">Max Guests:</span> {selectedRoom.maxGuests}
                     </div>
                     <div>
-                      <span className="font-medium">Price:</span> ${selectedRoom.price}/event
+                      <span className="font-medium">Price:</span> Rp{selectedRoom.price.toLocaleString()}/event
                     </div>
                   </div>
 
@@ -298,18 +423,42 @@ export default function RoomBookingPopup({ selectedRoom, selectedEvent, isOpen, 
 
               {/* Right: Booking Form */}
               <div className="order-2 lg:w-1/2 flex flex-col">
-                <form onSubmit={onSubmit} className="space-y-6 flex flex-col flex-1">
+                <form onSubmit={handleBookingSubmit} className="space-y-6 flex flex-col flex-1">
+                  {error && (
+                    <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded">
+                      {error}
+                    </div>
+                  )}
+                  
+                  {!user && (
+                    <div className="bg-yellow-100 border border-yellow-400 text-yellow-700 px-4 py-3 rounded">
+                      Please sign in to make a booking.
+                    </div>
+                  )}
+
                   <div className="bg-muted p-6 rounded-lg">
                     <h4 className="font-semibold text-lg mb-4">Book Your Dinner Event</h4>
 
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
                       <div>
-                        <Label htmlFor="eventdate">Event Date</Label>
-                        <Input type="date" id="eventdate" required />
+                        <Label htmlFor="bookingDate">Event Date</Label>
+                        <Input 
+                          type="date" 
+                          id="bookingDate" 
+                          value={formData.bookingDate}
+                          onChange={handleInputChange}
+                          required 
+                        />
                       </div>
                       <div>
-                        <Label htmlFor="eventtime">Event Time</Label>
-                        <Input type="time" id="eventtime" required />
+                        <Label htmlFor="bookingTime">Event Time</Label>
+                        <Input 
+                          type="time" 
+                          id="bookingTime" 
+                          value={formData.bookingTime}
+                          onChange={handleInputChange}
+                          required 
+                        />
                       </div>
                     </div>
 
@@ -321,7 +470,8 @@ export default function RoomBookingPopup({ selectedRoom, selectedEvent, isOpen, 
                           id="guests"
                           min="1"
                           max={selectedRoom.maxGuests}
-                          defaultValue="1"
+                          value={formData.guests}
+                          onChange={handleInputChange}
                           required
                         />
                       </div>
@@ -338,22 +488,46 @@ export default function RoomBookingPopup({ selectedRoom, selectedEvent, isOpen, 
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                       <div>
                         <Label htmlFor="firstName">First Name</Label>
-                        <Input type="text" id="firstName" required />
+                        <Input 
+                          type="text" 
+                          id="firstName" 
+                          value={formData.firstName}
+                          onChange={handleInputChange}
+                          required 
+                        />
                       </div>
                       <div>
                         <Label htmlFor="lastName">Last Name</Label>
-                        <Input type="text" id="lastName" required />
+                        <Input 
+                          type="text" 
+                          id="lastName" 
+                          value={formData.lastName}
+                          onChange={handleInputChange}
+                          required 
+                        />
                       </div>
                     </div>
 
                     <div>
                       <Label htmlFor="email">Email Address</Label>
-                      <Input type="email" id="email" required />
+                      <Input 
+                        type="email" 
+                        id="email" 
+                        value={formData.email}
+                        onChange={handleInputChange}
+                        required 
+                      />
                     </div>
 
                     <div>
                       <Label htmlFor="phone">Phone Number</Label>
-                      <Input type="tel" id="phone" required />
+                      <Input 
+                        type="tel" 
+                        id="phone" 
+                        value={formData.phone}
+                        onChange={handleInputChange}
+                        required 
+                      />
                     </div>
 
                     <div>
@@ -362,11 +536,13 @@ export default function RoomBookingPopup({ selectedRoom, selectedEvent, isOpen, 
                     </div>
 
                     <div>
-                      <Label htmlFor="requests">Special Requests</Label>
+                      <Label htmlFor="specialRequests">Special Requests</Label>
                       <Textarea
-                        id="requests"
+                        id="specialRequests"
                         placeholder="Catering preferences, decorations, special arrangements..."
                         rows={3}
+                        value={formData.specialRequests}
+                        onChange={handleInputChange}
                       />
                     </div>
                   </div>
@@ -375,8 +551,12 @@ export default function RoomBookingPopup({ selectedRoom, selectedEvent, isOpen, 
                     <Button type="button" variant="outline" onClick={onClose} className="flex-1 bg-transparent">
                       Cancel
                     </Button>
-                    <Button type="submit" className="flex-1 bg-primary hover:bg-primary/90">
-                      Book Event - ${selectedRoom.price}
+                    <Button 
+                      type="submit" 
+                      className="flex-1 bg-primary hover:bg-primary/90"
+                      disabled={loading || !user}
+                    >
+                      {loading ? 'Submitting...' : `Book Room - Rp${selectedRoom.price.toLocaleString()}`}
                     </Button>
                   </div>
                 </form>
@@ -438,16 +618,13 @@ export default function RoomBookingPopup({ selectedRoom, selectedEvent, isOpen, 
                     </div>
                     <div>
                       <span className="font-medium">Event Dates:</span> {
-    (() => {
-      console.log('Date debug - startDate:', selectedEvent.startDate, 'endDate:', selectedEvent.endDate);
-      console.log('Date debug - startDate type:', typeof selectedEvent.startDate, 'endDate type:', typeof selectedEvent.endDate);
-      
-      if ((selectedEvent.startDate && selectedEvent.startDate !== null && selectedEvent.startDate !== '') && 
-          (selectedEvent.endDate && selectedEvent.endDate !== null && selectedEvent.endDate !== '')) {
-        return selectedEvent.startDate === selectedEvent.endDate ?
-          new Date(selectedEvent.startDate).toLocaleDateString() :
-          `${new Date(selectedEvent.startDate).toLocaleDateString()} - ${new Date(selectedEvent.endDate).toLocaleDateString()}`;
-      } else {
+                        (() => {
+                          if ((selectedEvent.startDate && selectedEvent.startDate !== null && selectedEvent.startDate !== '') && 
+                              (selectedEvent.endDate && selectedEvent.endDate !== null && selectedEvent.endDate !== '')) {
+                            return selectedEvent.startDate === selectedEvent.endDate ?
+                              formatDateDisplay(selectedEvent.startDate) :
+                              `${formatDateDisplay(selectedEvent.startDate)} - ${formatDateDisplay(selectedEvent.endDate)}`;
+                          } else {
         return 'Dates flexible';
       }
     })()
@@ -457,7 +634,7 @@ export default function RoomBookingPopup({ selectedRoom, selectedEvent, isOpen, 
                       <span className="font-medium">Min Guests:</span> {selectedEvent.minGuests}
                     </div>
                     <div>
-                      <span className="font-medium">Price:</span> ${selectedEvent.price}/person
+                      <span className="font-medium">Price:</span> Rp{selectedEvent.price.toLocaleString()}/person
                     </div>
                   </div>
                   <div>
@@ -473,17 +650,44 @@ export default function RoomBookingPopup({ selectedRoom, selectedEvent, isOpen, 
                 </div>
               </div>
               <div className="order-2 lg:w-1/2 flex flex-col">
-                <form onSubmit={onSubmit} className="space-y-6 flex flex-col flex-1">
+                <form onSubmit={handleBookingSubmit} className="space-y-6 flex flex-col flex-1">
+                  {error && (
+                    <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded">
+                      {error}
+                    </div>
+                  )}
+                  
+                  {!user && (
+                    <div className="bg-yellow-100 border border-yellow-400 text-yellow-700 px-4 py-3 rounded">
+                      Please sign in to make a booking.
+                    </div>
+                  )}
+
                   <div className="bg-muted p-6 rounded-lg">
                     <h4 className="font-semibold text-lg mb-4">Book This Special Event</h4>
+                    
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
                       <div>
-                        <Label htmlFor="bookingdate">Booking Date</Label>
-                        <Input type="date" id="bookingdate" required />
+                        <Label htmlFor="bookingDate">Booking Date</Label>
+                        <Input 
+                          type="date" 
+                          id="bookingDate" 
+                          value={formData.bookingDate}
+                          onChange={handleInputChange}
+                          min={selectedEvent.startDate || undefined}
+                          max={selectedEvent.endDate || undefined}
+                          required 
+                        />
                       </div>
                       <div>
-                        <Label htmlFor="bookingtime">Booking Time</Label>
-                        <Input type="time" id="bookingtime" required />
+                        <Label htmlFor="bookingTime">Booking Time</Label>
+                        <Input 
+                          type="time" 
+                          id="bookingTime" 
+                          value={formData.bookingTime}
+                          onChange={handleInputChange}
+                          required 
+                        />
                       </div>
                     </div>
                     <div className="grid grid-cols-1 gap-4 mb-4">
@@ -493,7 +697,8 @@ export default function RoomBookingPopup({ selectedRoom, selectedEvent, isOpen, 
                           type="number"
                           id="guests"
                           min={selectedEvent.minGuests}
-                          defaultValue={selectedEvent.minGuests}
+                          value={formData.guests}
+                          onChange={handleInputChange}
                           required
                         />
                       </div>
@@ -504,27 +709,53 @@ export default function RoomBookingPopup({ selectedRoom, selectedEvent, isOpen, 
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                       <div>
                         <Label htmlFor="firstName">First Name</Label>
-                        <Input type="text" id="firstName" required />
+                        <Input 
+                          type="text" 
+                          id="firstName" 
+                          value={formData.firstName}
+                          onChange={handleInputChange}
+                          required 
+                        />
                       </div>
                       <div>
                         <Label htmlFor="lastName">Last Name</Label>
-                        <Input type="text" id="lastName" required />
+                        <Input 
+                          type="text" 
+                          id="lastName" 
+                          value={formData.lastName}
+                          onChange={handleInputChange}
+                          required 
+                        />
                       </div>
                     </div>
                     <div>
                       <Label htmlFor="email">Email Address</Label>
-                      <Input type="email" id="email" required />
+                      <Input 
+                        type="email" 
+                        id="email" 
+                        value={formData.email}
+                        onChange={handleInputChange}
+                        required 
+                      />
                     </div>
                     <div>
                       <Label htmlFor="phone">Phone Number</Label>
-                      <Input type="tel" id="phone" required />
+                      <Input 
+                        type="tel" 
+                        id="phone" 
+                        value={formData.phone}
+                        onChange={handleInputChange}
+                        required 
+                      />
                     </div>
                     <div>
-                      <Label htmlFor="requests">Special Requests</Label>
+                      <Label htmlFor="specialRequests">Special Requests</Label>
                       <Textarea
-                        id="requests"
+                        id="specialRequests"
                         placeholder="Catering preferences, decorations, special arrangements..."
                         rows={3}
+                        value={formData.specialRequests}
+                        onChange={handleInputChange}
                       />
                     </div>
                   </div>
@@ -532,8 +763,12 @@ export default function RoomBookingPopup({ selectedRoom, selectedEvent, isOpen, 
                     <Button type="button" variant="outline" onClick={onClose} className="flex-1 bg-transparent">
                       Cancel
                     </Button>
-                    <Button type="submit" className="flex-1 bg-primary hover:bg-primary/90">
-                      Book Event - ${selectedEvent.price}/person
+                    <Button 
+                      type="submit" 
+                      className="flex-1 bg-primary hover:bg-primary/90"
+                      disabled={loading || !user}
+                    >
+                      {loading ? 'Submitting...' : `Book Event - Rp${selectedEvent.price.toLocaleString()}/person`}
                     </Button>
                   </div>
                 </form>

@@ -66,7 +66,7 @@ const specialEventToCalendarEvent = (specialEvent: SpecialEvent, index: number):
   return {
     id: specialEvent.id,
     title: specialEvent.name,
-    description: `${specialEvent.description}\n\nPrice: $${specialEvent.price}\nType: ${specialEvent.eventType}\n${eventDatesText}\nMin Guests: ${specialEvent.minGuests}${specialEvent.includes.length > 0 ? `\nIncludes: ${specialEvent.includes.join(', ')}` : ''}`,
+    description: `${specialEvent.description}\n\nPrice: Rp${specialEvent.price.toLocaleString()}\nType: ${specialEvent.eventType}\n${eventDatesText}\nMin Guests: ${specialEvent.minGuests}${specialEvent.includes.length > 0 ? `\nIncludes: ${specialEvent.includes.join(', ')}` : ''}`,
     startDate: startDate,
     endDate: endDate,
     startTime: "18:00", // Default evening time for special events
@@ -145,7 +145,7 @@ export function AdminEventCalendar() {
             {
               id: 'test-event-1',
               title: 'Wine Tasting Dinner',
-              description: 'An exquisite evening featuring a 5-course dinner paired with premium wines\n\nPrice: $150\nType: Culinary Experience\nDuration: 3 hours\nMin Guests: 2\nIncludes: 5-Course Dinner, Wine Pairings, Sommelier Service',
+              description: 'An exquisite evening featuring a 5-course dinner paired with premium wines\n\nPrice: Rp150,000\nType: Culinary Experience\nDuration: 3 hours\nMin Guests: 2\nIncludes: 5-Course Dinner, Wine Pairings, Sommelier Service',
               startDate: new Date(2025, 8, 29), // September 29, 2025
               endDate: new Date(2025, 8, 29),
               startTime: "18:00",
@@ -156,7 +156,7 @@ export function AdminEventCalendar() {
             {
               id: 'test-event-2',
               title: 'Chef\'s Table Experience',
-              description: 'Intimate dining experience with the chef\n\nPrice: $200\nType: Culinary Experience\nDuration: 2.5 hours\nMin Guests: 2\nIncludes: Chef Interaction, Premium Menu, Wine Selection',
+              description: 'Intimate dining experience with the chef\n\nPrice: Rp200,000\nType: Culinary Experience\nDuration: 2.5 hours\nMin Guests: 2\nIncludes: Chef Interaction, Premium Menu, Wine Selection',
               startDate: new Date(2025, 8, 15), // September 15, 2025
               endDate: new Date(2025, 8, 15),
               startTime: "19:00",
@@ -181,7 +181,7 @@ export function AdminEventCalendar() {
             {
               id: 'fallback-event',
               title: 'Sample Special Event',
-              description: 'This is a sample event (Firebase connection failed)\n\nPrice: $100\nType: Test Event',
+              description: 'This is a sample event (Firebase connection failed)\n\nPrice: Rp100,000\nType: Test Event',
               startDate: new Date(2025, 8, 29),
               endDate: new Date(2025, 8, 29),
               startTime: "18:00",
@@ -205,7 +205,7 @@ export function AdminEventCalendar() {
         {
           id: 'static-event',
           title: 'Static Test Event',
-          description: 'This is a static test event (Firebase setup failed)\n\nPrice: $75\nType: Test',
+          description: 'This is a static test event (Firebase setup failed)\n\nPrice: Rp75,000\nType: Test',
           startDate: new Date(2025, 8, 29),
           endDate: new Date(2025, 8, 29),
           startTime: "18:00",

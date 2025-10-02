@@ -6,7 +6,7 @@ import { useState, useEffect } from "react"
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { MapPin, Users, Clock } from "lucide-react"
+import { MapPin, Users, Clock, User, LogOut } from "lucide-react"
 import RoomBookingPopup from "@/components/room-booking-popup"
 import { LoginForm } from "@/components/login-popup"
 import { Dialog, DialogContent } from "@/components/ui/dialog"
@@ -14,13 +14,16 @@ import { subscribeToClientEvents } from "@/lib/eventService"
 import { DiningRoom, SpecialEvent } from "@/lib/types"
 import { specialEventService } from "../services/special-event-service"
 import { Timestamp } from 'firebase/firestore'
+import { auth } from "@/lib/firebase"
+import { onAuthStateChanged, signOut, User as FirebaseUser } from "firebase/auth"
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 
 
 const diningRooms: DiningRoom[] = [
   {
     id: 1,
     name: "Grand Ballroom",
-    price: 1200,
+    price: 12000000,
     image: "/luxury-ocean-view-hotel.png",
     description:
       "Elegant ballroom perfect for large dinner events and celebrations. Features crystal chandeliers, hardwood floors, and panoramic city views.",
@@ -32,7 +35,7 @@ const diningRooms: DiningRoom[] = [
   {
     id: 2,
     name: "Executive Dining Room",
-    price: 800,
+    price: 8000000,
     image: "/placeholder-k45u6.png",
     description:
       "Sophisticated dining space ideal for corporate dinner events and business gatherings. Features modern decor and state-of-the-art AV equipment.",
@@ -47,7 +50,7 @@ const specialEvents: SpecialEvent[] = [
   {
     id: "event_1",
     name: "Wine Tasting Dinner",
-    price: 150,
+    price: 1500000,
     image: "/placeholder-k45u6.png",
     description:
       "An exquisite evening featuring a 5-course dinner paired with premium wines from our sommelier's selection.",
@@ -55,17 +58,21 @@ const specialEvents: SpecialEvent[] = [
     duration: Timestamp.fromDate(new Date("2000-01-01T19:00:00")), // 3 hours from 7pm
     eventType: "Culinary Experience",
     minGuests: 8,
+    startDate: "2025-10-05",
+    endDate: "2025-10-10",
   },
   {
     id: "event_2",
     name: "Live Jazz Dinner",
-    price: 120,
+    price: 1200000,
     image: "/placeholder-59hss.png",
     description: "Enjoy a sophisticated dinner accompanied by live jazz performances in an intimate setting.",
     includes: ["3-Course Dinner", "Live Jazz Band", "Cocktail Service", "Reserved Seating"],
     duration: Timestamp.fromDate(new Date("2000-01-01T19:30:00")), // 2.5 hours from 7:30pm
     eventType: "Entertainment",
     minGuests: 4,
+    startDate: "2025-10-15",
+    endDate: "2025-10-20",
   },
 ]
 
@@ -76,6 +83,7 @@ export default function ReservationPage() {
   const [isLoginOpen, setIsLoginOpen] = useState(false)
   const [firebaseEvents, setFirebaseEvents] = useState<SpecialEvent[]>([])
   const [loading, setLoading] = useState(true)
+  const [user, setUser] = useState<FirebaseUser | null>(null)
 
   // Subscribe to special events for real-time updates
   useEffect(() => {
@@ -86,6 +94,23 @@ export default function ReservationPage() {
 
     return () => unsubscribe()
   }, [])
+
+  // Listen for authentication state changes
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, (user) => {
+      setUser(user)
+    })
+
+    return unsubscribe
+  }, [])
+
+  const handleSignOut = async () => {
+    try {
+      await signOut(auth)
+    } catch (error) {
+      console.error('Error signing out:', error)
+    }
+  }
 
   // Combine hardcoded events with Firebase events for backward compatibility
   const allEvents = [...specialEvents, ...firebaseEvents]
@@ -125,14 +150,42 @@ export default function ReservationPage() {
           <div className="absolute inset-0 bg-black/40" />
         </div>
         <div className="absolute top-4 right-4 z-20">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => setIsLoginOpen(true)}
-            className="bg-black/30 border-white/30 text-white hover:bg-black/50"
-          >
-            Sign In
-          </Button>
+          {user ? (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="bg-black/30 border-white/30 text-white hover:bg-black/50 flex items-center gap-2"
+                >
+                  <User className="h-4 w-4" />
+                  {user.displayName || user.email?.split('@')[0] || 'Account'}
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-48">
+                <DropdownMenuItem className="flex items-center gap-2">
+                  <User className="h-4 w-4" />
+                  <span>{user.email}</span>
+                </DropdownMenuItem>
+                <DropdownMenuItem 
+                  onClick={handleSignOut}
+                  className="flex items-center gap-2 text-red-600 focus:text-red-600"
+                >
+                  <LogOut className="h-4 w-4" />
+                  <span>Sign Out</span>
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          ) : (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setIsLoginOpen(true)}
+              className="bg-black/30 border-white/30 text-white hover:bg-black/50"
+            >
+              Sign In
+            </Button>
+          )}
         </div>
         <div className="relative z-10 flex items-center justify-center h-full">
           <div className="flex flex-col items-center text-center text-white px-4">
@@ -166,7 +219,7 @@ export default function ReservationPage() {
             >
               <div className="relative">
                 <img src={room.image || "/placeholder.svg"} alt={room.name} className="w-full h-48 object-cover" />
-                <Badge className="absolute top-4 right-4 bg-primary text-primary-foreground">${room.price}/event</Badge>
+                <Badge className="absolute top-4 right-4 bg-primary text-primary-foreground">Rp{room.price.toLocaleString()}/event</Badge>
               </div>
               <CardContent className="p-6">
                 <h3 className="text-xl font-semibold mb-2">{room.name}</h3>
@@ -212,7 +265,7 @@ export default function ReservationPage() {
                 <div className="relative">
                   <img src={event.image || "/placeholder.svg"} alt={event.name} className="w-full h-48 object-cover" />
                   <Badge className="absolute top-4 right-4 bg-secondary text-secondary-foreground">
-                    ${event.price}/person
+                    Rp{event.price.toLocaleString()}/person
                   </Badge>
                   <div className="absolute bottom-4 left-4">
                     <Badge variant="outline" className="bg-white/90 text-black">
@@ -257,6 +310,8 @@ export default function ReservationPage() {
         isOpen={isDialogOpen}
         onClose={() => setIsDialogOpen(false)}
         onSubmit={handleSubmit}
+        user={user}
+        onLoginRequired={() => setIsLoginOpen(true)}
       />
 
       <Dialog open={isLoginOpen} onOpenChange={setIsLoginOpen}>
@@ -265,7 +320,7 @@ export default function ReservationPage() {
           style={{ minWidth: 0, minHeight: 0 }}
         >
           <div className="p-6 w-full h-full overflow-y-auto">
-            <LoginForm />
+            <LoginForm onSuccess={() => setIsLoginOpen(false)} />
           </div>
         </DialogContent>
       </Dialog>

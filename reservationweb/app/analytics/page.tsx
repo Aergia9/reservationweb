@@ -17,6 +17,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Edit, Trash2 } from "lucide-react"
 import React, { useState, useEffect } from 'react';
+import { EventsDataTable } from "@/components/events-data-table";
 import { db, auth, storage } from "@/lib/firebase";
 import { 
   collection, 
@@ -515,7 +516,7 @@ export default function Page() {
 
                       <div className="grid grid-cols-3 gap-4">
                         <div>
-                          <Label htmlFor="price">Price per Person</Label>
+                          <Label htmlFor="price">Price per Person (Rp)</Label>
                           <Input
                             id="price"
                             type="number"
@@ -656,105 +657,11 @@ export default function Page() {
                       <CardTitle>Events ({items.length})</CardTitle>
                     </CardHeader>
                     <CardContent>
-                      {items.length === 0 ? (
-                        <div className="py-8 text-center text-muted-foreground">
-                          No events found. Create your first event above!
-                        </div>
-                      ) : (
-                        <div className="rounded-md border">
-                          <Table>
-                            <TableHeader>
-                              <TableRow>
-                                <TableHead className="w-[200px]">Event Name</TableHead>
-                                <TableHead className="w-[120px]">Type</TableHead>
-                                <TableHead className="w-[100px]">Price</TableHead>
-                                <TableHead>Description</TableHead>
-                                <TableHead className="w-[120px]">Dates</TableHead>
-                                <TableHead className="w-[120px] text-right">Actions</TableHead>
-                              </TableRow>
-                            </TableHeader>
-                            <TableBody>
-                              {items.map((item) => (
-                                <TableRow key={item.id}>
-                                  <TableCell className="font-medium">
-                                    <div className="flex items-center gap-2">
-                                      <div className="w-12 h-12 relative">
-                                        <img
-                                          src={item.image || "/placeholder.svg"}
-                                          alt={item.name || "Event"}
-                                          className="w-full h-full object-cover rounded-md"
-                                        />
-                                        {item.images && item.images.length > 1 && (
-                                          <Badge className="absolute -top-1 -right-1 text-xs h-4">
-                                            +{item.images.length - 1}
-                                          </Badge>
-                                        )}
-                                      </div>
-                                      <span>{item.name || item.title || 'Untitled Event'}</span>
-                                    </div>
-                                  </TableCell>
-                                  <TableCell>
-                                    {item.eventType ? (
-                                      <Badge variant="secondary" className="text-xs">
-                                        {item.eventType}
-                                      </Badge>
-                                    ) : (
-                                      <span className="text-muted-foreground text-xs">—</span>
-                                    )}
-                                  </TableCell>
-                                  <TableCell>
-                                    {item.price ? (
-                                      <span className="font-mono text-sm">${item.price}</span>
-                                    ) : (
-                                      <span className="text-muted-foreground text-xs">—</span>
-                                    )}
-                                  </TableCell>
-                                  <TableCell className="max-w-[300px]">
-                                    <div className="truncate" title={item.description}>
-                                      {item.description || <span className="text-muted-foreground italic">No description</span>}
-                                    </div>
-                                  </TableCell>
-                                  <TableCell>
-                                    {item.startDate && item.endDate ? (
-                                      item.startDate === item.endDate ? (
-                                        <div className="text-xs">{new Date(item.startDate).toLocaleDateString()}</div>
-                                      ) : (
-                                        <div className="text-xs">
-                                          {new Date(item.startDate).toLocaleDateString()} - {new Date(item.endDate).toLocaleDateString()}
-                                        </div>
-                                      )
-                                    ) : (
-                                      <div className="text-xs text-muted-foreground">
-                                        Created: {item.createdAt.toDate().toLocaleDateString()}
-                                      </div>
-                                    )}
-                                  </TableCell>
-                                  <TableCell className="text-right">
-                                    <div className="flex justify-end gap-2">
-                                      <Button
-                                        variant="outline"
-                                        size="sm"
-                                        onClick={() => startEdit(item)}
-                                        className="h-8 w-8 p-0"
-                                      >
-                                        <Edit className="h-4 w-4" />
-                                      </Button>
-                                      <Button
-                                        variant="destructive"
-                                        size="sm"
-                                        onClick={() => confirmDelete(item.id!)}
-                                        className="h-8 w-8 p-0"
-                                      >
-                                        <Trash2 className="h-4 w-4" />
-                                      </Button>
-                                    </div>
-                                  </TableCell>
-                                </TableRow>
-                              ))}
-                            </TableBody>
-                          </Table>
-                        </div>
-                      )}
+                      <EventsDataTable 
+                        data={items}
+                        onEdit={startEdit}
+                        onDelete={confirmDelete}
+                      />
                     </CardContent>
                   </Card>
                   
