@@ -13,10 +13,18 @@ import {
   getSortedRowModel,
   useReactTable,
 } from "@tanstack/react-table"
-import { ArrowUpDown, ChevronDown, MoreHorizontal } from "lucide-react"
+import { ArrowUpDown, ChevronDown, MoreHorizontal, Eye, Check, X, Download, Trash2 } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
 import {
   DropdownMenu,
   DropdownMenuCheckboxItem,
@@ -43,6 +51,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
+import { toast } from "sonner"
 
 export interface Booking {
   id: string
@@ -54,6 +63,8 @@ export interface Booking {
   email: string
   phone: string
   specialRequests?: string
+  paymentImageUrl?: string
+  paymentStatus?: "pending" | "approved" | "rejected"
   userId: string
   userEmail: string
   bookingType: "room" | "event"
@@ -70,13 +81,18 @@ export interface Booking {
 interface DataTableProps {
   data: Booking[]
   onStatusUpdate: (bookingId: string, newStatus: string) => void
+  onPaymentStatusUpdate?: (bookingId: string, newStatus: string) => void
+  onDelete?: (bookingIds: string[]) => void
 }
 
-export function DataTable({ data, onStatusUpdate }: DataTableProps) {
+export function DataTable({ data, onStatusUpdate, onPaymentStatusUpdate, onDelete }: DataTableProps) {
   const [sorting, setSorting] = React.useState<SortingState>([])
   const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>([])
   const [columnVisibility, setColumnVisibility] = React.useState<VisibilityState>({})
   const [rowSelection, setRowSelection] = React.useState({})
+  const [selectedPaymentImage, setSelectedPaymentImage] = React.useState<string | null>(null)
+  const [paymentDialogOpen, setPaymentDialogOpen] = React.useState(false)
+  const [selectedBooking, setSelectedBooking] = React.useState<Booking | null>(null)
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -93,6 +109,36 @@ export function DataTable({ data, onStatusUpdate }: DataTableProps) {
     }
   }
 
+  const getPaymentStatusColor = (status: string) => {
+    switch (status) {
+      case "pending":
+        return "bg-yellow-100 text-yellow-800"
+      case "approved":
+        return "bg-green-100 text-green-800"
+      case "rejected":
+        return "bg-red-100 text-red-800"
+      default:
+        return "bg-gray-100 text-gray-800"
+    }
+  }
+
+  const openPaymentDialog = (booking: Booking) => {
+    setSelectedBooking(booking)
+    setSelectedPaymentImage(booking.paymentImageUrl || null)
+    setPaymentDialogOpen(true)
+  }
+
+  const handlePaymentApproval = (bookingId: string, approved: boolean) => {
+    const newPaymentStatus = approved ? "approved" : "rejected"
+    const newBookingStatus = approved ? "confirmed" : "cancelled"
+    
+    onPaymentStatusUpdate?.(bookingId, newPaymentStatus)
+    onStatusUpdate(bookingId, newBookingStatus)
+    
+    toast.success(`Payment ${approved ? "approved" : "rejected"} and booking ${approved ? "confirmed" : "cancelled"}`)
+    setPaymentDialogOpen(false)
+  }
+
   const formatDate = (dateString: string) => {
     return new Date(dateString).toLocaleDateString('id-ID', {
       day: '2-digit',
@@ -103,6 +149,66 @@ export function DataTable({ data, onStatusUpdate }: DataTableProps) {
 
   const formatPrice = (price: number) => {
     return `Rp${price.toLocaleString()}`
+  }
+
+  const exportToCSV = async () => {
+    try {
+      const headers = [
+        "Booking ID",
+        "Customer",
+        "Type",
+        "Service",
+        "Date & Time",
+        "Guests",
+        "Email",
+        "Phone",
+        "Price",
+        "Payment Status",
+        "Status",
+        "Payment Image URL",
+        "Created At"
+      ]
+
+      const csvData = data.map(booking => {
+        return [
+          booking.id,
+          `${booking.firstName} ${booking.lastName}`,
+          booking.bookingType,
+          booking.roomName || booking.eventName || "",
+          `${booking.bookingDate} ${booking.bookingTime}`,
+          booking.guests,
+          booking.email,
+          booking.phone,
+          formatPrice(booking.totalPrice),
+          booking.paymentStatus || "pending",
+          booking.status,
+          booking.paymentImageUrl || "No image",
+          booking.createdAt?.toDate?.()?.toLocaleDateString() || "N/A"
+        ]
+      })
+
+      const csvContent = [
+        headers.join(","),
+        ...csvData.map(row => row.map(cell => `"${cell}"`).join(","))
+      ].join("\n")
+
+      // Simple CSV download without images for now
+      const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" })
+      const link = document.createElement("a")
+      const url = URL.createObjectURL(blob)
+      link.setAttribute("href", url)
+      link.setAttribute("download", `bookings-${new Date().toISOString().split('T')[0]}.csv`)
+      link.style.visibility = "hidden"
+      document.body.appendChild(link)
+      link.click()
+      document.body.removeChild(link)
+      URL.revokeObjectURL(url)
+      
+      toast.success("Bookings exported to CSV successfully! Image URLs included in the CSV.")
+    } catch (error) {
+      console.error('Export failed:', error)
+      toast.error("Failed to export bookings. Please try again.")
+    }
   }
 
   const columns: ColumnDef<Booking>[] = [
@@ -234,6 +340,20 @@ export function DataTable({ data, onStatusUpdate }: DataTableProps) {
       ),
     },
     {
+      accessorKey: "paymentStatus",
+      header: "Payment",
+      cell: ({ row }) => {
+        const booking = row.original
+        const paymentStatus = booking.paymentStatus || "pending"
+        
+        return (
+          <Badge className={getPaymentStatusColor(paymentStatus)}>
+            {paymentStatus}
+          </Badge>
+        )
+      },
+    },
+    {
       accessorKey: "status",
       header: "Status",
       cell: ({ row }) => (
@@ -243,7 +363,8 @@ export function DataTable({ data, onStatusUpdate }: DataTableProps) {
       ),
     },
     {
-      id: "actions",
+      id: "status-update",
+      header: "Status",
       enableHiding: false,
       cell: ({ row }) => {
         const booking = row.original
@@ -263,6 +384,33 @@ export function DataTable({ data, onStatusUpdate }: DataTableProps) {
               <SelectItem value="completed">Completed</SelectItem>
             </SelectContent>
           </Select>
+        )
+      },
+    },
+    {
+      id: "actions",
+      header: "Payment Review",
+      enableHiding: false,
+      cell: ({ row }) => {
+        const booking = row.original
+        const hasPaymentImage = booking.paymentImageUrl
+        
+        return (
+          <div className="flex justify-center">
+            {hasPaymentImage ? (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => openPaymentDialog(booking)}
+                className="h-8 w-20"
+              >
+                <Eye className="h-4 w-4 mr-1" />
+                Review
+              </Button>
+            ) : (
+              <span className="text-sm text-muted-foreground">No image</span>
+            )}
+          </div>
         )
       },
     },
@@ -298,12 +446,37 @@ export function DataTable({ data, onStatusUpdate }: DataTableProps) {
           }
           className="max-w-sm"
         />
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="outline" className="ml-auto">
-              Columns <ChevronDown className="ml-2 h-4 w-4" />
+        <div className="flex gap-2 ml-auto">
+          {Object.keys(rowSelection).filter(key => rowSelection[key as keyof typeof rowSelection]).length > 0 && onDelete && (
+            <Button
+              variant="outline"
+              onClick={() => {
+                const selectedIndices = Object.keys(rowSelection).filter(key => rowSelection[key as keyof typeof rowSelection])
+                const selectedBookings = data.filter((_, index) => selectedIndices.includes(index.toString()))
+                if (selectedBookings.length > 0) {
+                  onDelete(selectedBookings.map(booking => booking.id))
+                }
+              }}
+              className="h-10 text-red-600 hover:text-red-700 hover:bg-red-50"
+            >
+              <Trash2 className="mr-2 h-4 w-4" />
+              Delete Selected ({Object.keys(rowSelection).filter(key => rowSelection[key as keyof typeof rowSelection]).length})
             </Button>
-          </DropdownMenuTrigger>
+          )}
+          <Button
+            variant="outline"
+            onClick={exportToCSV}
+            className="h-10"
+          >
+            <Download className="mr-2 h-4 w-4" />
+            Export CSV
+          </Button>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline">
+                Columns <ChevronDown className="ml-2 h-4 w-4" />
+              </Button>
+            </DropdownMenuTrigger>
           <DropdownMenuContent align="end">
             {table
               .getAllColumns()
@@ -324,6 +497,7 @@ export function DataTable({ data, onStatusUpdate }: DataTableProps) {
               })}
           </DropdownMenuContent>
         </DropdownMenu>
+        </div>
       </div>
       <div className="rounded-md border">
         <Table>
@@ -399,6 +573,78 @@ export function DataTable({ data, onStatusUpdate }: DataTableProps) {
           </Button>
         </div>
       </div>
+
+      {/* Payment Review Dialog */}
+      <Dialog open={paymentDialogOpen} onOpenChange={setPaymentDialogOpen}>
+        <DialogContent className="max-w-3xl">
+          <DialogHeader>
+            <DialogTitle>Payment Review</DialogTitle>
+            <DialogDescription>
+              Review the payment proof for booking by {selectedBooking?.firstName} {selectedBooking?.lastName}
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="space-y-4">
+            {/* Booking Details */}
+            <div className="grid grid-cols-2 gap-4 p-4 bg-gray-50 dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700">
+              <div>
+                <p className="text-sm font-medium text-gray-900 dark:text-gray-100">Customer:</p>
+                <p className="text-sm text-gray-700 dark:text-gray-300">{selectedBooking?.firstName} {selectedBooking?.lastName}</p>
+              </div>
+              <div>
+                <p className="text-sm font-medium text-gray-900 dark:text-gray-100">Event/Room:</p>
+                <p className="text-sm text-gray-700 dark:text-gray-300">{selectedBooking?.roomName || selectedBooking?.eventName}</p>
+              </div>
+              <div>
+                <p className="text-sm font-medium text-gray-900 dark:text-gray-100">Date & Time:</p>
+                <p className="text-sm text-gray-700 dark:text-gray-300">{selectedBooking?.bookingDate} at {selectedBooking?.bookingTime}</p>
+              </div>
+              <div>
+                <p className="text-sm font-medium text-gray-900 dark:text-gray-100">Total Price:</p>
+                <p className="text-sm font-medium text-green-600 dark:text-green-400">{formatPrice(selectedBooking?.totalPrice || 0)}</p>
+              </div>
+            </div>
+
+            {/* Payment Image */}
+            {selectedPaymentImage && (
+              <div className="space-y-2">
+                <p className="text-sm font-medium text-gray-900 dark:text-gray-100">Payment Proof:</p>
+                <div className="border border-gray-200 dark:border-gray-700 rounded-lg p-4 bg-white dark:bg-gray-800">
+                  <img 
+                    src={selectedPaymentImage} 
+                    alt="Payment proof" 
+                    className="max-w-full max-h-96 mx-auto object-contain rounded-md"
+                  />
+                </div>
+              </div>
+            )}
+          </div>
+
+          <DialogFooter className="gap-2">
+            <Button
+              variant="outline"
+              onClick={() => setPaymentDialogOpen(false)}
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={() => selectedBooking && handlePaymentApproval(selectedBooking.id, false)}
+              className="bg-red-600 hover:bg-red-700"
+            >
+              <X className="h-4 w-4 mr-2" />
+              Reject Payment
+            </Button>
+            <Button
+              onClick={() => selectedBooking && handlePaymentApproval(selectedBooking.id, true)}
+              className="bg-green-600 hover:bg-green-700"
+            >
+              <Check className="h-4 w-4 mr-2" />
+              Approve Payment
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

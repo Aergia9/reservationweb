@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { collection, onSnapshot, doc, updateDoc } from "firebase/firestore"
+import { collection, onSnapshot, doc, updateDoc, deleteDoc } from "firebase/firestore"
 import { db } from "@/lib/firebase"
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -10,10 +10,30 @@ import { SidebarProvider, SidebarInset } from "@/components/ui/sidebar"
 import { AppSidebar } from "@/components/app-sidebar"
 import { SiteHeader } from "@/components/site-header"
 import { DataTable, type Booking } from "@/components/bookings-data-table"
+import { toast } from "sonner"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
 
 export default function BookingsPage() {
   const [bookings, setBookings] = useState<Booking[]>([])
   const [loading, setLoading] = useState(true)
+  const [deleteDialog, setDeleteDialog] = useState<{
+    isOpen: boolean
+    bookingId: string | null
+    bookingDetails: string
+  }>({
+    isOpen: false,
+    bookingId: null,
+    bookingDetails: ""
+  })
 
   useEffect(() => {
     const unsubscribe = onSnapshot(collection(db, "booking"), (snapshot) => {
@@ -42,8 +62,59 @@ export default function BookingsPage() {
         status: newStatus,
         updatedAt: new Date()
       })
+      toast.success(`Booking status updated to ${newStatus}`)
     } catch (error) {
       console.error("Error updating booking status:", error)
+      toast.error("Failed to update booking status")
+    }
+  }
+
+  const updatePaymentStatus = async (bookingId: string, newPaymentStatus: string) => {
+    try {
+      await updateDoc(doc(db, "booking", bookingId), {
+        paymentStatus: newPaymentStatus,
+        updatedAt: new Date()
+      })
+      toast.success(`Payment status updated to ${newPaymentStatus}`)
+    } catch (error) {
+      console.error("Error updating payment status:", error)
+      toast.error("Failed to update payment status")
+    }
+  }
+
+  const deleteBooking = async (bookingIds: string[]) => {
+    if (bookingIds.length === 0) return
+    
+    const bookingDetails = bookingIds.map(id => {
+      const booking = bookings.find(b => b.id === id)
+      if (booking) {
+        const bookingName = booking.roomName || booking.eventName || "Unknown"
+        return `${booking.firstName} ${booking.lastName} - ${bookingName} on ${booking.bookingDate}`
+      }
+      return "Unknown booking"
+    }).join(", ")
+    
+    setDeleteDialog({
+      isOpen: true,
+      bookingId: bookingIds.join(","), // Store multiple IDs as comma-separated string
+      bookingDetails: `${bookingIds.length} booking(s): ${bookingDetails}`
+    })
+  }
+
+  const confirmDelete = async () => {
+    if (deleteDialog.bookingId) {
+      const bookingIds = deleteDialog.bookingId.split(",")
+      try {
+        // Delete all selected bookings
+        await Promise.all(
+          bookingIds.map(id => deleteDoc(doc(db, "booking", id)))
+        )
+        toast.success(`${bookingIds.length} booking(s) deleted successfully`)
+        setDeleteDialog({ isOpen: false, bookingId: null, bookingDetails: "" })
+      } catch (error) {
+        console.error("Error deleting bookings:", error)
+        toast.error("Failed to delete booking(s)")
+      }
     }
   }
 
@@ -54,7 +125,7 @@ export default function BookingsPage() {
   // Calculate statistics
   const totalBookings = bookings.length
   const totalRevenue = bookings
-    .filter(booking => booking.status !== "cancelled")
+    .filter(booking => booking.status === "confirmed" || booking.status === "completed")
     .reduce((sum, booking) => sum + booking.totalPrice, 0)
   const pendingBookings = bookings.filter(booking => booking.status === "pending").length
   const confirmedBookings = bookings.filter(booking => booking.status === "confirmed").length
@@ -76,7 +147,7 @@ export default function BookingsPage() {
             <div className="@container/main flex flex-1 flex-col gap-2">
               <div className="flex flex-col gap-4 py-4 md:gap-6 md:py-6">
                 <div className="px-4 lg:px-6">
-                  <div className="max-w-7xl mx-auto">
+                  <div className="max-w-none mx-auto">
                     <div className="flex h-64 items-center justify-center">
                       <div className="text-lg">Loading bookings...</div>
                     </div>
@@ -106,7 +177,7 @@ export default function BookingsPage() {
           <div className="@container/main flex flex-1 flex-col gap-2">
             <div className="flex flex-col gap-4 py-4 md:gap-6 md:py-6">
               <div className="px-4 lg:px-6">
-                <div className="max-w-7xl mx-auto space-y-6">
+                <div className="max-w-none mx-auto space-y-6">
                   <div className="flex items-center justify-between space-y-2">
                     <h1 className="text-3xl font-bold">Bookings</h1>
                   </div>
@@ -130,7 +201,7 @@ export default function BookingsPage() {
                       </CardHeader>
                       <CardContent>
                         <div className="text-2xl font-bold">{formatPrice(totalRevenue)}</div>
-                        <p className="text-xs text-muted-foreground">Excluding cancelled bookings</p>
+                        <p className="text-xs text-muted-foreground">Confirmed and completed bookings only</p>
                       </CardContent>
                     </Card>
                     <Card>
@@ -162,7 +233,12 @@ export default function BookingsPage() {
                       <CardDescription>Manage all your restaurant bookings here.</CardDescription>
                     </CardHeader>
                     <CardContent>
-                      <DataTable data={bookings} onStatusUpdate={updateBookingStatus} />
+                      <DataTable 
+                        data={bookings} 
+                        onStatusUpdate={updateBookingStatus}
+                        onPaymentStatusUpdate={updatePaymentStatus}
+                        onDelete={deleteBooking}
+                      />
                     </CardContent>
                   </Card>
                 </div>
@@ -171,6 +247,28 @@ export default function BookingsPage() {
           </div>
         </div>
       </SidebarInset>
+
+      {/* Delete Confirmation Dialog */}
+      <AlertDialog open={deleteDialog.isOpen} onOpenChange={(open) => setDeleteDialog({ ...deleteDialog, isOpen: open })}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Are you sure you want to delete this booking?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This action cannot be undone. This will permanently delete the booking for:
+              <br />
+              <strong>{deleteDialog.bookingDetails}</strong>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => setDeleteDialog({ isOpen: false, bookingId: null, bookingDetails: "" })}>
+              Cancel
+            </AlertDialogCancel>
+            <AlertDialogAction onClick={confirmDelete} className="bg-red-600 hover:bg-red-700">
+              Delete Booking
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </SidebarProvider>
   )
 }

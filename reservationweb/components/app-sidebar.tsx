@@ -33,8 +33,8 @@ const data = {
       icon: IconDashboard,
     },
     {
-      title: "Event",
-      url: "/event",
+      title: "Event Calendar",
+      url: "/event-calendar",
       icon: IconFolder,
     },
     {
@@ -43,8 +43,8 @@ const data = {
       icon: IconCalendarEvent,
     },
     {
-      title: "Analytics",
-      url: "/analytics",
+      title: "Event",
+      url: "/event",
       icon: IconChartBar,
     },
   ],

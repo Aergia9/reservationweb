@@ -10,6 +10,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { toast } from "sonner"
 
 export function LoginForm({ className, onSuccess, ...props }: React.ComponentProps<"div"> & { onSuccess?: () => void }) {
   const [activeTab, setActiveTab] = useState("signin")
@@ -59,7 +60,7 @@ export function LoginForm({ className, onSuccess, ...props }: React.ComponentPro
       setPassword("")
       setConfirmPassword("")
       setFullName("")
-      alert("Account created successfully! You can now sign in.")
+      toast.success("Account created successfully! You can now sign in.")
     } catch (error: any) {
       setError(getErrorMessage(error))
     } finally {
@@ -121,7 +122,7 @@ export function LoginForm({ className, onSuccess, ...props }: React.ComponentPro
     
     try {
       await sendPasswordResetEmail(auth, email)
-      alert("Password reset email sent! Check your inbox.")
+      toast.success("Password reset email sent! Check your inbox.")
     } catch (error: any) {
       setError(getErrorMessage(error))
     } finally {

@@ -13,7 +13,7 @@ import {
   getSortedRowModel,
   useReactTable,
 } from "@tanstack/react-table"
-import { ArrowUpDown, ChevronDown, MoreHorizontal, Edit, Trash2 } from "lucide-react"
+import { ArrowUpDown, ChevronDown, MoreHorizontal, Edit, Trash2, Download } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
@@ -37,6 +37,7 @@ import {
 } from "@/components/ui/table"
 import { Badge } from "@/components/ui/badge"
 import { Timestamp } from "firebase/firestore"
+import { toast } from "sonner"
 
 export interface EventItem {
   id?: string;
@@ -93,6 +94,71 @@ export function EventsDataTable({ data, onEdit, onDelete }: EventsDataTableProps
     }
     
     return <Badge variant={variants[type] || "outline"}>{type}</Badge>
+  }
+
+  const exportToCSV = async () => {
+    try {
+      const headers = [
+        "Event ID",
+        "Name",
+        "Description",
+        "Event Type",
+        "Price",
+        "Min Guests",
+        "Duration",
+        "Start Date",
+        "End Date",
+        "Includes",
+        "Image URLs",
+        "Created At"
+      ]
+
+      const csvData = data.map(event => {
+        let imageInfo = "No images"
+        if (event.images && Array.isArray(event.images)) {
+          imageInfo = event.images.join("; ")
+        } else if (event.image && event.image !== "/placeholder.svg") {
+          imageInfo = event.image
+        }
+        
+        return [
+          event.id || "",
+          event.name || event.title || "",
+          event.description || "",
+          event.eventType || "",
+          formatPrice(event.price),
+          event.minGuests || "",
+          event.duration || "",
+          event.startDate || "",
+          event.endDate || "",
+          Array.isArray(event.includes) ? event.includes.join("; ") : "",
+          imageInfo,
+          event.createdAt?.toDate?.()?.toLocaleDateString() || "N/A"
+        ]
+      })
+
+      const csvContent = [
+        headers.join(","),
+        ...csvData.map(row => row.map(cell => `"${cell}"`).join(","))
+      ].join("\n")
+
+      // Simple CSV download with image URLs
+      const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" })
+      const link = document.createElement("a")
+      const url = URL.createObjectURL(blob)
+      link.setAttribute("href", url)
+      link.setAttribute("download", `events-${new Date().toISOString().split('T')[0]}.csv`)
+      link.style.visibility = "hidden"
+      document.body.appendChild(link)
+      link.click()
+      document.body.removeChild(link)
+      URL.revokeObjectURL(url)
+      
+      toast.success("Events exported to CSV successfully! Image URLs included in the CSV.")
+    } catch (error) {
+      console.error('Export failed:', error)
+      toast.error("Failed to export events. Please try again.")
+    }
   }
 
   const columns: ColumnDef<EventItem>[] = [
@@ -300,32 +366,42 @@ export function EventsDataTable({ data, onEdit, onDelete }: EventsDataTableProps
           }
           className="max-w-sm"
         />
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="outline" className="ml-auto">
-              Columns <ChevronDown className="ml-2 h-4 w-4" />
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
-            {table
-              .getAllColumns()
-              .filter((column) => column.getCanHide())
-              .map((column) => {
-                return (
-                  <DropdownMenuCheckboxItem
-                    key={column.id}
-                    className="capitalize"
-                    checked={column.getIsVisible()}
-                    onCheckedChange={(value) =>
-                      column.toggleVisibility(!!value)
-                    }
-                  >
-                    {column.id}
-                  </DropdownMenuCheckboxItem>
-                )
-              })}
-          </DropdownMenuContent>
-        </DropdownMenu>
+        <div className="flex gap-2 ml-auto">
+          <Button
+            variant="outline"
+            onClick={exportToCSV}
+            className="h-10"
+          >
+            <Download className="mr-2 h-4 w-4" />
+            Export CSV
+          </Button>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline">
+                Columns <ChevronDown className="ml-2 h-4 w-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              {table
+                .getAllColumns()
+                .filter((column) => column.getCanHide())
+                .map((column) => {
+                  return (
+                    <DropdownMenuCheckboxItem
+                      key={column.id}
+                      className="capitalize"
+                      checked={column.getIsVisible()}
+                      onCheckedChange={(value) =>
+                        column.toggleVisibility(!!value)
+                      }
+                    >
+                      {column.id}
+                    </DropdownMenuCheckboxItem>
+                  )
+                })}
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
       </div>
       <div className="rounded-md border">
         <Table>

@@ -13,6 +13,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Calendar, ChevronLeft, ChevronRight, Plus, Filter, Trash2, Clock, MapPin } from "lucide-react"
 import { cn } from "@/lib/utils"
+import { toast } from "sonner"
 import { db } from "@/lib/firebase"
 import { collection, onSnapshot, deleteDoc, doc, Timestamp } from "firebase/firestore"
 
@@ -241,7 +242,7 @@ export function AdminEventCalendar() {
       console.log('Special event deleted:', eventId);
     } catch (error) {
       console.error("Failed to delete special event:", error);
-      alert("Failed to delete event. Please try again.");
+      toast.error("Failed to delete event. Please try again.");
     }
   }
 

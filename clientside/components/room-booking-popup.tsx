@@ -8,9 +8,10 @@ import { Textarea } from "@/components/ui/textarea"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Timestamp, collection, addDoc } from 'firebase/firestore'
-import { User } from 'firebase/auth'
-import { db } from "@/lib/firebase"
+import { ref, uploadBytes, getDownloadURL } from 'firebase/storage'
+import { db, storage } from "@/lib/firebase"
 import { DiningRoom, SpecialEvent } from "@/lib/types"
+import { toast } from "sonner"
 
 // Image Slider Component
 interface ImageSliderProps {
@@ -234,11 +235,9 @@ interface RoomBookingPopupProps {
   isOpen: boolean
   onClose: () => void
   onSubmit: (e: React.FormEvent) => void
-  user: User | null
-  onLoginRequired: () => void
 }
 
-export default function RoomBookingPopup({ selectedRoom, selectedEvent, isOpen, onClose, onSubmit, user, onLoginRequired }: RoomBookingPopupProps) {
+export default function RoomBookingPopup({ selectedRoom, selectedEvent, isOpen, onClose, onSubmit }: RoomBookingPopupProps) {
   const [formData, setFormData] = useState({
     bookingDate: '',
     bookingTime: '',
@@ -247,20 +246,12 @@ export default function RoomBookingPopup({ selectedRoom, selectedEvent, isOpen, 
     lastName: '',
     email: '',
     phone: '',
-    specialRequests: ''
+    specialRequests: '',
+    paymentImage: null as File | null
   })
   const [loading, setLoading] = useState(false)
+  const [paymentImagePreview, setPaymentImagePreview] = useState<string | null>(null)
   const [error, setError] = useState('')
-
-  // Auto-fill email when user is available
-  useEffect(() => {
-    if (user?.email && formData.email === '') {
-      setFormData(prev => ({
-        ...prev,
-        email: user.email || ''
-      }))
-    }
-  }, [user, formData.email])
 
   // Reset form when dialog opens/closes
   useEffect(() => {
@@ -271,13 +262,15 @@ export default function RoomBookingPopup({ selectedRoom, selectedEvent, isOpen, 
         guests: '',
         firstName: '',
         lastName: '',
-        email: user?.email || '',
+        email: '',
         phone: '',
-        specialRequests: ''
+        specialRequests: '',
+        paymentImage: null
       })
+      setPaymentImagePreview(null)
       setError('')
     }
-  }, [isOpen, user])
+  }, [isOpen])
 
   const formatDateDisplay = (dateStr: string) => {
     if (!dateStr) return 'Date not set'
@@ -305,15 +298,43 @@ export default function RoomBookingPopup({ selectedRoom, selectedEvent, isOpen, 
     }))
   }
 
+  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (file) {
+      // Validate file type
+      if (!file.type.startsWith('image/')) {
+        toast.error('Please select a valid image file')
+        return
+      }
+      // Validate file size (max 5MB)
+      if (file.size > 5 * 1024 * 1024) {
+        toast.error('Image must be smaller than 5MB')
+        return
+      }
+      
+      setFormData(prev => ({
+        ...prev,
+        paymentImage: file
+      }))
+      
+      // Create preview
+      const reader = new FileReader()
+      reader.onload = (e) => {
+        setPaymentImagePreview(e.target?.result as string)
+      }
+      reader.readAsDataURL(file)
+    }
+  }
+
   const handleBookingSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     
-    // Check if user is logged in
-    if (!user) {
-      onLoginRequired()
+    // Validate payment image is required
+    if (!formData.paymentImage) {
+      setError('Please upload payment proof image to complete your booking')
       return
     }
-
+    
     // Validate date range for events
     if (selectedEvent && selectedEvent.startDate && selectedEvent.endDate) {
       if (!isDateInRange(formData.bookingDate, selectedEvent.startDate, selectedEvent.endDate)) {
@@ -326,11 +347,29 @@ export default function RoomBookingPopup({ selectedRoom, selectedEvent, isOpen, 
     setError('')
 
     try {
+      let paymentImageUrl = ''
+      
+      // Upload payment image to Firebase Storage
+      if (formData.paymentImage) {
+        const timestamp = Date.now()
+        const fileName = `payment_${timestamp}_${formData.paymentImage.name}`
+        const storageRef = ref(storage, `payment-proofs/${fileName}`)
+        
+        const snapshot = await uploadBytes(storageRef, formData.paymentImage)
+        paymentImageUrl = await getDownloadURL(snapshot.ref)
+      }
+
       // Prepare booking data
       const bookingData = {
-        ...formData,
-        userId: user.uid,
-        userEmail: user.email,
+        bookingDate: formData.bookingDate,
+        bookingTime: formData.bookingTime,
+        guests: formData.guests,
+        firstName: formData.firstName,
+        lastName: formData.lastName,
+        email: formData.email,
+        phone: formData.phone,
+        specialRequests: formData.specialRequests,
+        paymentImageUrl,
         bookingType: selectedRoom ? 'room' : 'event',
         roomId: selectedRoom?.id || null,
         roomName: selectedRoom?.name || null,
@@ -338,6 +377,7 @@ export default function RoomBookingPopup({ selectedRoom, selectedEvent, isOpen, 
         eventName: selectedEvent?.name || null,
         totalPrice: selectedRoom ? selectedRoom.price : selectedEvent?.price || 0,
         status: 'pending',
+        paymentStatus: 'pending', // New field for payment review
         createdAt: Timestamp.now(),
         updatedAt: Timestamp.now()
       }
@@ -351,7 +391,7 @@ export default function RoomBookingPopup({ selectedRoom, selectedEvent, isOpen, 
       // Success - close modal
       onClose()
       
-      alert('Booking submitted successfully! We will contact you soon.')
+      toast.success('Booking submitted successfully! Payment proof uploaded. We will review and contact you soon.')
       
     } catch (error) {
       console.error('Error saving booking:', error)
@@ -427,12 +467,6 @@ export default function RoomBookingPopup({ selectedRoom, selectedEvent, isOpen, 
                   {error && (
                     <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded">
                       {error}
-                    </div>
-                  )}
-                  
-                  {!user && (
-                    <div className="bg-yellow-100 border border-yellow-400 text-yellow-700 px-4 py-3 rounded">
-                      Please sign in to make a booking.
                     </div>
                   )}
 
@@ -545,6 +579,35 @@ export default function RoomBookingPopup({ selectedRoom, selectedEvent, isOpen, 
                         onChange={handleInputChange}
                       />
                     </div>
+
+                    {/* Payment Proof Upload */}
+                    <div className="space-y-4 pt-4 border-t">
+                      <h4 className="font-semibold text-lg">Payment Proof</h4>
+                      <p className="text-sm text-muted-foreground">
+                        Please upload your payment proof to complete the booking. Admin will review and confirm your booking.
+                      </p>
+                      
+                      <div>
+                        <Label htmlFor="paymentImage">Upload Payment Receipt *</Label>
+                        <Input 
+                          type="file" 
+                          id="paymentImage" 
+                          accept="image/*"
+                          onChange={handleImageChange}
+                          required 
+                          className="mt-1"
+                        />
+                        {paymentImagePreview && (
+                          <div className="mt-3">
+                            <img 
+                              src={paymentImagePreview} 
+                              alt="Payment proof preview" 
+                              className="max-w-full h-48 object-contain border rounded-lg"
+                            />
+                          </div>
+                        )}
+                      </div>
+                    </div>
                   </div>
 
                   <div className="flex flex-col sm:flex-row gap-4 mt-auto">
@@ -554,7 +617,7 @@ export default function RoomBookingPopup({ selectedRoom, selectedEvent, isOpen, 
                     <Button 
                       type="submit" 
                       className="flex-1 bg-primary hover:bg-primary/90"
-                      disabled={loading || !user}
+                      disabled={loading}
                     >
                       {loading ? 'Submitting...' : `Book Room - Rp${selectedRoom.price.toLocaleString()}`}
                     </Button>
@@ -656,12 +719,6 @@ export default function RoomBookingPopup({ selectedRoom, selectedEvent, isOpen, 
                       {error}
                     </div>
                   )}
-                  
-                  {!user && (
-                    <div className="bg-yellow-100 border border-yellow-400 text-yellow-700 px-4 py-3 rounded">
-                      Please sign in to make a booking.
-                    </div>
-                  )}
 
                   <div className="bg-muted p-6 rounded-lg">
                     <h4 className="font-semibold text-lg mb-4">Book This Special Event</h4>
@@ -758,6 +815,35 @@ export default function RoomBookingPopup({ selectedRoom, selectedEvent, isOpen, 
                         onChange={handleInputChange}
                       />
                     </div>
+
+                    {/* Payment Proof Upload */}
+                    <div className="space-y-4 pt-4 border-t">
+                      <h4 className="font-semibold text-lg">Payment Proof</h4>
+                      <p className="text-sm text-muted-foreground">
+                        Please upload your payment proof to complete the booking. Admin will review and confirm your booking.
+                      </p>
+                      
+                      <div>
+                        <Label htmlFor="paymentImage">Upload Payment Receipt *</Label>
+                        <Input 
+                          type="file" 
+                          id="paymentImage" 
+                          accept="image/*"
+                          onChange={handleImageChange}
+                          required 
+                          className="mt-1"
+                        />
+                        {paymentImagePreview && (
+                          <div className="mt-3">
+                            <img 
+                              src={paymentImagePreview} 
+                              alt="Payment proof preview" 
+                              className="max-w-full h-48 object-contain border rounded-lg"
+                            />
+                          </div>
+                        )}
+                      </div>
+                    </div>
                   </div>
                   <div className="flex flex-col sm:flex-row gap-4 mt-auto">
                     <Button type="button" variant="outline" onClick={onClose} className="flex-1 bg-transparent">
@@ -766,7 +852,7 @@ export default function RoomBookingPopup({ selectedRoom, selectedEvent, isOpen, 
                     <Button 
                       type="submit" 
                       className="flex-1 bg-primary hover:bg-primary/90"
-                      disabled={loading || !user}
+                      disabled={loading}
                     >
                       {loading ? 'Submitting...' : `Book Event - Rp${selectedEvent.price.toLocaleString()}/person`}
                     </Button>
