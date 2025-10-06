@@ -405,14 +405,14 @@ export default function RoomBookingPopup({ selectedRoom, selectedEvent, isOpen, 
       <DialogContent
         className="
           w-full h-full max-w-[1100px] max-h-[95vh] p-0
-          flex items-center justify-center
+          flex items-center justify-center bg-white
           sm:w-[98vw] sm:h-[98vh] sm:max-w-[1100px] sm:max-h-[95vh]
         "
         style={{ minWidth: 0, minHeight: 0 }}
       >
-        <div className="p-6 w-full h-full overflow-y-auto flex flex-col">
+        <div className="p-6 w-full h-full overflow-y-auto flex flex-col bg-white text-black">
           <DialogHeader>
-            <DialogTitle className="text-2xl">
+            <DialogTitle className="text-2xl text-black">
               {selectedRoom?.name || selectedEvent?.name}
             </DialogTitle>
           </DialogHeader>
@@ -429,7 +429,7 @@ export default function RoomBookingPopup({ selectedRoom, selectedEvent, isOpen, 
 
                 <div className="space-y-6">
                   <div>
-                    <h4 className="font-semibold text-lg mb-2">Dining Room Event Details</h4>
+                    <h4 className="font-semibold text-lg mb-2 text-black">Dining Room Event Details</h4>
                     <p className="text-muted-foreground mb-4 text-pretty">{selectedRoom.description}</p>
                   </div>
 
@@ -449,7 +449,7 @@ export default function RoomBookingPopup({ selectedRoom, selectedEvent, isOpen, 
                   </div>
 
                   <div>
-                    <h4 className="font-semibold mb-3">Features</h4>
+                    <h4 className="font-semibold mb-3 text-black">Features</h4>
                     <div className="flex flex-wrap gap-2">
                       {selectedRoom.amenities.map((amenity, index) => (
                         <Badge key={index} variant="secondary">
@@ -471,7 +471,7 @@ export default function RoomBookingPopup({ selectedRoom, selectedEvent, isOpen, 
                   )}
 
                   <div className="bg-muted p-6 rounded-lg">
-                    <h4 className="font-semibold text-lg mb-4">Book Your Dinner Event</h4>
+                    <h4 className="font-semibold text-lg mb-4 text-black">Book Your Dinner Event</h4>
 
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
                       <div>
@@ -517,7 +517,7 @@ export default function RoomBookingPopup({ selectedRoom, selectedEvent, isOpen, 
                   </div>
 
                   <div className="space-y-4">
-                    <h4 className="font-semibold">Event Organizer Information</h4>
+                    <h4 className="font-semibold text-black">Event Organizer Information</h4>
 
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                       <div>
