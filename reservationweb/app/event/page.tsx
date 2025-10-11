@@ -15,7 +15,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Edit, Trash2 } from "lucide-react"
+import { Checkbox } from "@/components/ui/checkbox"
+import { Edit, Trash2, Plus, X } from "lucide-react"
 import React, { useState, useEffect } from 'react';
 import { EventsDataTable } from "@/components/events-data-table";
 import { db, auth, storage } from "@/lib/firebase";
@@ -57,6 +58,16 @@ interface EventItem {
   endDate?: string;
   createdAt: Timestamp;
   updatedAt: Timestamp;
+  // Package support
+  hasPackages?: boolean;
+  packages?: Array<{
+    id: string;
+    name: string;
+    description: string;
+    price: number;
+    peopleCount: number;
+    includes: string[];
+  }>;
 }
 
 export default function Page() {
@@ -87,7 +98,16 @@ export default function Page() {
     eventType: "",
     minGuests: "",
     startDate: "",
-    endDate: ""
+    endDate: "",
+    hasPackages: false,
+    packages: [] as Array<{
+      id: string;
+      name: string;
+      description: string;
+      price: string;
+      peopleCount: string;
+      includes: string;
+    }>
   });
 
   // Authentication state listener
@@ -201,6 +221,19 @@ export default function Page() {
       if (formData.startDate) itemData.startDate = formData.startDate;
       if (formData.endDate) itemData.endDate = formData.endDate;
       
+      // Add package data
+      itemData.hasPackages = formData.hasPackages;
+      if (formData.hasPackages && formData.packages.length > 0) {
+        itemData.packages = formData.packages.map(pkg => ({
+          id: pkg.id,
+          name: pkg.name,
+          description: pkg.description,
+          price: parseFloat(pkg.price) || 0,
+          peopleCount: parseInt(pkg.peopleCount) || 1,
+          includes: pkg.includes.split(',').map((item: string) => item.trim()).filter((item: string) => item)
+        }));
+      }
+      
       const docRef = await addDoc(collection(db, 'event'), itemData);
       
       console.log('✅ Item created successfully with ID:', docRef.id);
@@ -217,7 +250,9 @@ export default function Page() {
         eventType: "",
         minGuests: "",
         startDate: "",
-        endDate: ""
+        endDate: "",
+        hasPackages: false,
+        packages: []
       });
       setSelectedImageFiles([]);
       setImagePreviews([]);
@@ -302,6 +337,21 @@ export default function Page() {
       if (formData.startDate) updateData.startDate = formData.startDate;
       if (formData.endDate) updateData.endDate = formData.endDate;
       
+      // Add package data
+      updateData.hasPackages = formData.hasPackages;
+      if (formData.hasPackages && formData.packages.length > 0) {
+        updateData.packages = formData.packages.map(pkg => ({
+          id: pkg.id,
+          name: pkg.name,
+          description: pkg.description,
+          price: parseFloat(pkg.price) || 0,
+          peopleCount: parseInt(pkg.peopleCount) || 1,
+          includes: pkg.includes.split(',').map((item: string) => item.trim()).filter((item: string) => item)
+        }));
+      } else {
+        updateData.packages = [];
+      }
+      
       await updateDoc(doc(db, 'event', editingId), updateData);
       
       // Reset form and close edit mode
@@ -318,7 +368,9 @@ export default function Page() {
         eventType: "",
         minGuests: "",
         startDate: "",
-        endDate: ""
+        endDate: "",
+        hasPackages: false,
+        packages: []
       });
       setSelectedImageFiles([]);
       setImagePreviews([]);
@@ -366,7 +418,16 @@ export default function Page() {
       eventType: item.eventType || "",
       minGuests: item.minGuests?.toString() || "",
       startDate: item.startDate || "",
-      endDate: item.endDate || ""
+      endDate: item.endDate || "",
+      hasPackages: item.hasPackages || false,
+      packages: item.packages?.map(pkg => ({
+        id: pkg.id,
+        name: pkg.name,
+        description: pkg.description,
+        price: pkg.price.toString(),
+        peopleCount: pkg.peopleCount.toString(),
+        includes: pkg.includes.join(', ')
+      })) || []
     });
     // Show existing images as previews
     setImagePreviews(item.images || [item.image].filter((img): img is string => Boolean(img)));
@@ -388,7 +449,9 @@ export default function Page() {
       eventType: "",
       minGuests: "",
       startDate: "",
-      endDate: ""
+      endDate: "",
+      hasPackages: false,
+      packages: []
     });
     setSelectedImageFiles([]);
     setImagePreviews([]);
@@ -428,6 +491,41 @@ export default function Page() {
     
     setSelectedImageFiles(newFiles);
     setImagePreviews(newPreviews);
+  };
+
+  // Package management functions
+  const addPackage = () => {
+    const newPackage = {
+      id: Date.now().toString(),
+      name: "",
+      description: "",
+      price: "",
+      peopleCount: "",
+      includes: ""
+    };
+    setFormData({
+      ...formData,
+      packages: [...formData.packages, newPackage]
+    });
+  };
+
+  const removePackage = (index: number) => {
+    setFormData({
+      ...formData,
+      packages: formData.packages.filter((_, i) => i !== index)
+    });
+  };
+
+  const updatePackage = (index: number, field: string, value: string) => {
+    const updatedPackages = [...formData.packages];
+    updatedPackages[index] = {
+      ...updatedPackages[index],
+      [field]: value
+    };
+    setFormData({
+      ...formData,
+      packages: updatedPackages
+    });
   };
 
   return (
@@ -523,7 +621,10 @@ export default function Page() {
 
                       <div className="grid grid-cols-3 gap-4">
                         <div>
-                          <Label htmlFor="price">Price per Person (Rp)</Label>
+                          <Label htmlFor="price">
+                            Price per Person (Rp) 
+                            {formData.hasPackages && <span className="text-muted-foreground">(disabled - using packages)</span>}
+                          </Label>
                           <Input
                             id="price"
                             type="number"
@@ -532,6 +633,8 @@ export default function Page() {
                             placeholder="150"
                             min="0"
                             step="0.01"
+                            disabled={formData.hasPackages}
+                            className={formData.hasPackages ? "opacity-50" : ""}
                           />
                         </div>
                         <div>
@@ -556,16 +659,134 @@ export default function Page() {
                         </div>
                       </div>
 
-                      <div>
-                        <Label htmlFor="includes">What's Included (comma-separated)</Label>
-                        <Textarea
-                          id="includes"
-                          value={formData.includes}
-                          onChange={(e) => setFormData({ ...formData, includes: e.target.value })}
-                          placeholder="5-Course Dinner, Wine Pairings, Sommelier Service"
-                          rows={2}
-                        />
+                      {/* Package System Toggle */}
+                      <div className="space-y-4">
+                        <div className="space-y-2">
+                          <div className="flex items-center space-x-2">
+                            <Checkbox
+                              id="hasPackages"
+                              checked={formData.hasPackages}
+                              onCheckedChange={(checked) => 
+                                setFormData({ 
+                                  ...formData, 
+                                  hasPackages: checked as boolean,
+                                  packages: checked ? formData.packages : []
+                                })
+                              }
+                            />
+                            <Label htmlFor="hasPackages" className="text-sm font-medium">
+                              Enable Package Pricing (instead of per-person pricing)
+                            </Label>
+                          </div>
+                          <p className="text-xs text-muted-foreground ml-6">
+                            Use packages when you want to offer fixed-price options for specific group sizes. 
+                            For example: "Family Package for 3 people - Rp150,000" or "Corporate Package for 10 people - Rp500,000"
+                          </p>
+                        </div>
+                        
+                        {formData.hasPackages && (
+                          <div className="space-y-3 border rounded-lg p-4 bg-muted/30">
+                            <div className="flex items-center justify-between">
+                              <Label className="text-sm font-medium">Event Packages</Label>
+                              <Button
+                                type="button"
+                                variant="outline"
+                                size="sm"
+                                onClick={addPackage}
+                                className="flex items-center gap-1"
+                              >
+                                <Plus className="h-3 w-3" />
+                                Add Package
+                              </Button>
+                            </div>
+                            
+                            {formData.packages.length === 0 ? (
+                              <div className="text-center py-4 text-muted-foreground text-sm">
+                                No packages created yet. Click "Add Package" to create your first package.
+                              </div>
+                            ) : (
+                              <div className="space-y-3">
+                                {formData.packages.map((pkg, index) => (
+                                  <div key={pkg.id} className="border rounded-md p-3 bg-background">
+                                    <div className="flex items-center justify-between mb-2">
+                                      <Label className="text-xs font-medium text-muted-foreground">
+                                        Package {index + 1}
+                                      </Label>
+                                      <Button
+                                        type="button"
+                                        variant="ghost"
+                                        size="sm"
+                                        onClick={() => removePackage(index)}
+                                        className="h-6 w-6 p-0 text-destructive hover:text-destructive"
+                                      >
+                                        <X className="h-3 w-3" />
+                                      </Button>
+                                    </div>
+                                    
+                                    <div className="grid grid-cols-2 gap-2 mb-2">
+                                      <div>
+                                        <Input
+                                          placeholder="Package name (e.g., Family Package)"
+                                          value={pkg.name}
+                                          onChange={(e) => updatePackage(index, 'name', e.target.value)}
+                                          className="text-sm"
+                                        />
+                                      </div>
+                                      <div className="grid grid-cols-2 gap-1">
+                                        <Input
+                                          type="number"
+                                          placeholder="Price"
+                                          value={pkg.price}
+                                          onChange={(e) => updatePackage(index, 'price', e.target.value)}
+                                          className="text-sm"
+                                          min="0"
+                                        />
+                                        <Input
+                                          type="number"
+                                          placeholder="People"
+                                          value={pkg.peopleCount}
+                                          onChange={(e) => updatePackage(index, 'peopleCount', e.target.value)}
+                                          className="text-sm"
+                                          min="1"
+                                        />
+                                      </div>
+                                    </div>
+                                    
+                                    <div className="space-y-1">
+                                      <Textarea
+                                        placeholder="Package description"
+                                        value={pkg.description}
+                                        onChange={(e) => updatePackage(index, 'description', e.target.value)}
+                                        className="text-sm"
+                                        rows={2}
+                                      />
+                                      <Input
+                                        placeholder="What's included (comma-separated)"
+                                        value={pkg.includes}
+                                        onChange={(e) => updatePackage(index, 'includes', e.target.value)}
+                                        className="text-sm"
+                                      />
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        )}
                       </div>
+
+                      {!formData.hasPackages && (
+                        <div>
+                          <Label htmlFor="includes">What's Included (comma-separated)</Label>
+                          <Textarea
+                            id="includes"
+                            value={formData.includes}
+                            onChange={(e) => setFormData({ ...formData, includes: e.target.value })}
+                            placeholder="5-Course Dinner, Wine Pairings, Sommelier Service"
+                            rows={2}
+                          />
+                        </div>
+                      )}
 
                         <div>
                           <Label htmlFor="imageFile">Event Images</Label>
@@ -738,7 +959,10 @@ export default function Page() {
 
                         <div className="grid grid-cols-3 gap-4">
                           <div>
-                            <Label htmlFor="edit-price">Price per Person</Label>
+                            <Label htmlFor="edit-price">
+                              Price per Person
+                              {formData.hasPackages && <span className="text-muted-foreground"> (disabled - using packages)</span>}
+                            </Label>
                             <Input
                               id="edit-price"
                               type="number"
@@ -747,6 +971,8 @@ export default function Page() {
                               placeholder="150"
                               min="0"
                               step="0.01"
+                              disabled={formData.hasPackages}
+                              className={formData.hasPackages ? "opacity-50" : ""}
                             />
                           </div>
                           <div>
@@ -771,16 +997,134 @@ export default function Page() {
                           </div>
                         </div>
 
-                        <div>
-                          <Label htmlFor="edit-includes">What's Included (comma-separated)</Label>
-                          <Textarea
-                            id="edit-includes"
-                            value={formData.includes}
-                            onChange={(e) => setFormData({ ...formData, includes: e.target.value })}
-                            placeholder="5-Course Dinner, Wine Pairings, Sommelier Service"
-                            rows={2}
-                          />
+                        {/* Package System Toggle */}
+                        <div className="space-y-4">
+                          <div className="space-y-2">
+                            <div className="flex items-center space-x-2">
+                              <Checkbox
+                                id="edit-hasPackages"
+                                checked={formData.hasPackages}
+                                onCheckedChange={(checked) => 
+                                  setFormData({ 
+                                    ...formData, 
+                                    hasPackages: checked as boolean,
+                                    packages: checked ? formData.packages : []
+                                  })
+                                }
+                              />
+                              <Label htmlFor="edit-hasPackages" className="text-sm font-medium">
+                                Enable Package Pricing (instead of per-person pricing)
+                              </Label>
+                            </div>
+                            <p className="text-xs text-muted-foreground ml-6">
+                              Use packages when you want to offer fixed-price options for specific group sizes. 
+                              For example: "Family Package for 3 people - Rp150,000" or "Corporate Package for 10 people - Rp500,000"
+                            </p>
+                          </div>
+                          
+                          {formData.hasPackages && (
+                            <div className="space-y-3 border rounded-lg p-4 bg-muted/30">
+                              <div className="flex items-center justify-between">
+                                <Label className="text-sm font-medium">Event Packages</Label>
+                                <Button
+                                  type="button"
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={addPackage}
+                                  className="flex items-center gap-1"
+                                >
+                                  <Plus className="h-3 w-3" />
+                                  Add Package
+                                </Button>
+                              </div>
+                              
+                              {formData.packages.length === 0 ? (
+                                <div className="text-center py-4 text-muted-foreground text-sm">
+                                  No packages created yet. Click "Add Package" to create your first package.
+                                </div>
+                              ) : (
+                                <div className="space-y-3">
+                                  {formData.packages.map((pkg, index) => (
+                                    <div key={pkg.id} className="border rounded-md p-3 bg-background">
+                                      <div className="flex items-center justify-between mb-2">
+                                        <Label className="text-xs font-medium text-muted-foreground">
+                                          Package {index + 1}
+                                        </Label>
+                                        <Button
+                                          type="button"
+                                          variant="ghost"
+                                          size="sm"
+                                          onClick={() => removePackage(index)}
+                                          className="h-6 w-6 p-0 text-destructive hover:text-destructive"
+                                        >
+                                          <X className="h-3 w-3" />
+                                        </Button>
+                                      </div>
+                                      
+                                      <div className="grid grid-cols-2 gap-2 mb-2">
+                                        <div>
+                                          <Input
+                                            placeholder="Package name (e.g., Family Package)"
+                                            value={pkg.name}
+                                            onChange={(e) => updatePackage(index, 'name', e.target.value)}
+                                            className="text-sm"
+                                          />
+                                        </div>
+                                        <div className="grid grid-cols-2 gap-1">
+                                          <Input
+                                            type="number"
+                                            placeholder="Price"
+                                            value={pkg.price}
+                                            onChange={(e) => updatePackage(index, 'price', e.target.value)}
+                                            className="text-sm"
+                                            min="0"
+                                          />
+                                          <Input
+                                            type="number"
+                                            placeholder="People"
+                                            value={pkg.peopleCount}
+                                            onChange={(e) => updatePackage(index, 'peopleCount', e.target.value)}
+                                            className="text-sm"
+                                            min="1"
+                                          />
+                                        </div>
+                                      </div>
+                                      
+                                      <div className="space-y-1">
+                                        <Textarea
+                                          placeholder="Package description"
+                                          value={pkg.description}
+                                          onChange={(e) => updatePackage(index, 'description', e.target.value)}
+                                          className="text-sm"
+                                          rows={2}
+                                        />
+                                        <Input
+                                          placeholder="What's included (comma-separated)"
+                                          value={pkg.includes}
+                                          onChange={(e) => updatePackage(index, 'includes', e.target.value)}
+                                          className="text-sm"
+                                        />
+                                      </div>
+                                    </div>
+                                  ))}
+                                </div>
+                              )}
+                            </div>
+                          )}
                         </div>
+
+                        {!formData.hasPackages && (
+                          <div>
+                            <Label htmlFor="edit-includes">What's Included (comma-separated)</Label>
+                            <Textarea
+                              id="edit-includes"
+                              value={formData.includes}
+                              onChange={(e) => setFormData({ ...formData, includes: e.target.value })}
+                              placeholder="5-Course Dinner, Wine Pairings, Sommelier Service"
+                              rows={2}
+                            />
+                          </div>
+                        )}
 
                           <div>
                             <Label htmlFor="edit-imageFile">Event Images</Label>

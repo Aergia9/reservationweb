@@ -55,6 +55,16 @@ export interface EventItem {
   endDate?: string;
   createdAt: Timestamp;
   updatedAt: Timestamp;
+  // Package support
+  hasPackages?: boolean;
+  packages?: Array<{
+    id: string;
+    name: string;
+    description: string;
+    price: number;
+    peopleCount: number;
+    includes: string[];
+  }>;
 }
 
 interface EventsDataTableProps {
@@ -209,7 +219,7 @@ export function EventsDataTable({ data, onEdit, onDelete }: EventsDataTableProps
           <div>
             <div className="font-medium">{row.original.name || row.original.title || "-"}</div>
             {row.original.id && (
-              <div className="text-xs text-muted-foreground font-mono">
+              <div className="text-xs text-gray-500 font-mono">
                 ID: {(row.original.id as string).substring(0, 8)}...
               </div>
             )}
@@ -230,14 +240,33 @@ export function EventsDataTable({ data, onEdit, onDelete }: EventsDataTableProps
             variant="ghost"
             onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
           >
-            Price
+            Price/Packages
             <ArrowUpDown className="ml-2 h-4 w-4" />
           </Button>
         )
       },
-      cell: ({ row }) => (
-        <div className="font-medium">{formatPrice(row.getValue("price"))}</div>
-      ),
+      cell: ({ row }) => {
+        const event = row.original;
+        if (event.hasPackages && event.packages && event.packages.length > 0) {
+          return (
+            <div>
+              <Badge variant="secondary" className="mb-1">
+                {event.packages.length} Package{event.packages.length > 1 ? 's' : ''}
+              </Badge>
+              <div className="text-xs text-gray-600">
+                {event.packages.map((pkg, idx) => (
+                  <div key={idx}>
+                    {pkg.name}: Rp{pkg.price.toLocaleString()}
+                  </div>
+                ))}
+              </div>
+            </div>
+          );
+        }
+        return (
+          <div className="font-medium">{formatPrice(row.getValue("price"))}</div>
+        );
+      },
     },
     {
       accessorKey: "description",
@@ -454,7 +483,7 @@ export function EventsDataTable({ data, onEdit, onDelete }: EventsDataTableProps
         </Table>
       </div>
       <div className="flex items-center justify-end space-x-2 py-4">
-        <div className="flex-1 text-sm text-muted-foreground">
+        <div className="flex-1 text-sm text-gray-600">
           {table.getFilteredSelectedRowModel().rows.length} of{" "}
           {table.getFilteredRowModel().rows.length} row(s) selected.
         </div>

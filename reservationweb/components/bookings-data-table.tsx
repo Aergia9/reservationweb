@@ -13,7 +13,7 @@ import {
   getSortedRowModel,
   useReactTable,
 } from "@tanstack/react-table"
-import { ArrowUpDown, ChevronDown, MoreHorizontal, Eye, Check, X, Download, Trash2 } from "lucide-react"
+import { ArrowUpDown, ChevronDown, MoreHorizontal, Eye, Check, X, Download, Trash2, Edit } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
@@ -55,27 +55,35 @@ import { toast } from "sonner"
 
 export interface Booking {
   id: string
+  bookingId?: string // New custom booking ID
   bookingDate: string
   bookingTime: string
-  guests: string
+  guests?: string // Keep for backward compatibility
+  adults?: number
+  children?: number
+  totalGuests?: number
   firstName: string
   lastName: string
   email: string
   phone: string
-  specialRequests?: string
+  specialRequests?: string // Keep for backward compatibility
   paymentImageUrl?: string
   paymentStatus?: "pending" | "approved" | "rejected"
-  userId: string
-  userEmail: string
-  bookingType: "room" | "event"
-  roomId?: string | null
-  roomName?: string | null
+  userId?: string
+  userEmail?: string
+  bookingType: "event"
   eventId?: string | null
   eventName?: string | null
   totalPrice: number
   status: "pending" | "confirmed" | "cancelled" | "completed"
   createdAt: any
   updatedAt: any
+  // Package information
+  hasPackage?: boolean
+  packageId?: string | null
+  packageName?: string | null
+  packagePrice?: number | null
+  packagePeopleCount?: number | null
 }
 
 interface DataTableProps {
@@ -83,9 +91,10 @@ interface DataTableProps {
   onStatusUpdate: (bookingId: string, newStatus: string) => void
   onPaymentStatusUpdate?: (bookingId: string, newStatus: string) => void
   onDelete?: (bookingIds: string[]) => void
+  onUpdate?: (bookingId: string, updatedData: Partial<Booking>) => void
 }
 
-export function DataTable({ data, onStatusUpdate, onPaymentStatusUpdate, onDelete }: DataTableProps) {
+export function DataTable({ data, onStatusUpdate, onPaymentStatusUpdate, onDelete, onUpdate }: DataTableProps) {
   const [sorting, setSorting] = React.useState<SortingState>([])
   const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>([])
   const [columnVisibility, setColumnVisibility] = React.useState<VisibilityState>({})
@@ -93,6 +102,8 @@ export function DataTable({ data, onStatusUpdate, onPaymentStatusUpdate, onDelet
   const [selectedPaymentImage, setSelectedPaymentImage] = React.useState<string | null>(null)
   const [paymentDialogOpen, setPaymentDialogOpen] = React.useState(false)
   const [selectedBooking, setSelectedBooking] = React.useState<Booking | null>(null)
+  const [editDialogOpen, setEditDialogOpen] = React.useState(false)
+  const [editingBooking, setEditingBooking] = React.useState<Booking | null>(null)
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -174,7 +185,7 @@ export function DataTable({ data, onStatusUpdate, onPaymentStatusUpdate, onDelet
           booking.id,
           `${booking.firstName} ${booking.lastName}`,
           booking.bookingType,
-          booking.roomName || booking.eventName || "",
+          booking.eventName || "",
           `${booking.bookingDate} ${booking.bookingTime}`,
           booking.guests,
           booking.email,
@@ -235,11 +246,11 @@ export function DataTable({ data, onStatusUpdate, onPaymentStatusUpdate, onDelet
       enableHiding: false,
     },
     {
-      accessorKey: "id",
+      accessorKey: "bookingId",
       header: "Booking ID",
       cell: ({ row }) => (
-        <div className="font-mono text-xs">
-          {(row.getValue("id") as string).substring(0, 8)}...
+        <div className="font-mono text-sm font-medium">
+          {row.original.bookingId || (row.original.id ? row.original.id.substring(0, 8) + "..." : "No ID")}
         </div>
       ),
     },
@@ -271,17 +282,17 @@ export function DataTable({ data, onStatusUpdate, onPaymentStatusUpdate, onDelet
       accessorKey: "bookingType",
       header: "Type",
       cell: ({ row }) => (
-        <Badge variant={row.getValue("bookingType") === "room" ? "default" : "secondary"}>
-          {row.getValue("bookingType") === "room" ? "Room" : "Event"}
+        <Badge variant="secondary">
+          Event
         </Badge>
       ),
     },
     {
-      accessorKey: "roomName",
-      header: "Service",
+      accessorKey: "eventName",
+      header: "Event",
       cell: ({ row }) => (
         <div className="font-medium">
-          {row.original.roomName || row.original.eventName}
+          {row.original.eventName}
         </div>
       ),
     },
@@ -307,10 +318,34 @@ export function DataTable({ data, onStatusUpdate, onPaymentStatusUpdate, onDelet
     },
     {
       accessorKey: "guests",
-      header: "Guests",
-      cell: ({ row }) => (
-        <div className="text-center">{row.getValue("guests")}</div>
+      header: ({ column }) => (
+        <div className="text-center">
+          <Button
+            variant="ghost"
+            onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
+            className="h-8 px-2 lg:px-3"
+          >
+            Guests
+            <ArrowUpDown className="ml-2 h-4 w-4" />
+          </Button>
+        </div>
       ),
+      cell: ({ row }) => {
+        const booking = row.original;
+        if (booking.adults !== undefined || booking.children !== undefined) {
+          const adults = booking.adults || 0;
+          const children = booking.children || 0;
+          const total = booking.totalGuests || (adults + children);
+          return (
+            <div className="flex flex-col items-center justify-center text-center">
+              <div className="font-medium">{total} Total</div>
+              <div className="text-xs text-gray-600">{adults} Adults, {children} Children</div>
+            </div>
+          );
+        }
+        // Fallback for old booking format
+        return <div className="flex justify-center text-center">{row.getValue("guests") || "N/A"}</div>;
+      },
     },
     {
       accessorKey: "phone",
@@ -388,6 +423,31 @@ export function DataTable({ data, onStatusUpdate, onPaymentStatusUpdate, onDelet
       },
     },
     {
+      id: "edit-actions",
+      header: "Edit",
+      enableHiding: false,
+      cell: ({ row }) => {
+        const booking = row.original
+        
+        return (
+          <div className="flex justify-center">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                setEditingBooking(booking)
+                setEditDialogOpen(true)
+              }}
+              className="h-8 w-16"
+            >
+              <Edit className="h-4 w-4 mr-1" />
+              Edit
+            </Button>
+          </div>
+        )
+      },
+    },
+    {
       id: "actions",
       header: "Payment Review",
       enableHiding: false,
@@ -437,7 +497,7 @@ export function DataTable({ data, onStatusUpdate, onPaymentStatusUpdate, onDelet
 
   return (
     <div className="w-full">
-      <div className="flex items-center py-4">
+      <div className="flex items-center py-4 gap-4">
         <Input
           placeholder="Filter customers..."
           value={(table.getColumn("firstName")?.getFilterValue() as string) ?? ""}
@@ -446,6 +506,27 @@ export function DataTable({ data, onStatusUpdate, onPaymentStatusUpdate, onDelet
           }
           className="max-w-sm"
         />
+        
+        {/* Event Filter */}
+        <Select
+          value={(table.getColumn("eventName")?.getFilterValue() as string) ?? "all"}
+          onValueChange={(value) =>
+            table.getColumn("eventName")?.setFilterValue(value === "all" ? "" : value)
+          }
+        >
+          <SelectTrigger className="w-48">
+            <SelectValue placeholder="Filter by Event" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All Events</SelectItem>
+            {Array.from(new Set(data.map(booking => booking.eventName).filter(Boolean))).map((name) => (
+              <SelectItem key={name} value={name!}>
+                {name}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        
         <div className="flex gap-2 ml-auto">
           {Object.keys(rowSelection).filter(key => rowSelection[key as keyof typeof rowSelection]).length > 0 && onDelete && (
             <Button
@@ -592,8 +673,8 @@ export function DataTable({ data, onStatusUpdate, onPaymentStatusUpdate, onDelet
                 <p className="text-sm text-gray-700 dark:text-gray-300">{selectedBooking?.firstName} {selectedBooking?.lastName}</p>
               </div>
               <div>
-                <p className="text-sm font-medium text-gray-900 dark:text-gray-100">Event/Room:</p>
-                <p className="text-sm text-gray-700 dark:text-gray-300">{selectedBooking?.roomName || selectedBooking?.eventName}</p>
+                <p className="text-sm font-medium text-gray-900 dark:text-gray-100">Event:</p>
+                <p className="text-sm text-gray-700 dark:text-gray-300">{selectedBooking?.eventName}</p>
               </div>
               <div>
                 <p className="text-sm font-medium text-gray-900 dark:text-gray-100">Date & Time:</p>
@@ -641,6 +722,126 @@ export function DataTable({ data, onStatusUpdate, onPaymentStatusUpdate, onDelet
             >
               <Check className="h-4 w-4 mr-2" />
               Approve Payment
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Edit Booking Dialog */}
+      <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Edit Booking</DialogTitle>
+            <DialogDescription>
+              Edit booking details for {editingBooking?.firstName} {editingBooking?.lastName}
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="space-y-4">
+            <div className="grid grid-cols-1 gap-4">
+              <div>
+                <label className="text-sm font-medium text-gray-900 dark:text-gray-100">
+                  Booking Date
+                </label>
+                <input
+                  type="date"
+                  value={editingBooking?.bookingDate || ''}
+                  onChange={(e) => {
+                    if (editingBooking) {
+                      setEditingBooking({
+                        ...editingBooking,
+                        bookingDate: e.target.value
+                      })
+                    }
+                  }}
+                  className="mt-1 block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100"
+                />
+              </div>
+              
+              <div>
+                <label className="text-sm font-medium text-gray-900 dark:text-gray-100">
+                  Booking Time
+                </label>
+                <input
+                  type="time"
+                  value={editingBooking?.bookingTime || ''}
+                  onChange={(e) => {
+                    if (editingBooking) {
+                      setEditingBooking({
+                        ...editingBooking,
+                        bookingTime: e.target.value
+                      })
+                    }
+                  }}
+                  className="mt-1 block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100"
+                />
+              </div>
+              
+              <div>
+                <label className="text-sm font-medium text-gray-900 dark:text-gray-100">
+                  Adults
+                </label>
+                <input
+                  type="number"
+                  min="1"
+                  value={editingBooking?.adults || 1}
+                  onChange={(e) => {
+                    if (editingBooking) {
+                      setEditingBooking({
+                        ...editingBooking,
+                        adults: parseInt(e.target.value) || 1
+                      })
+                    }
+                  }}
+                  className="mt-1 block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100"
+                />
+              </div>
+              
+              <div>
+                <label className="text-sm font-medium text-gray-900 dark:text-gray-100">
+                  Children
+                </label>
+                <input
+                  type="number"
+                  min="0"
+                  value={editingBooking?.children || 0}
+                  onChange={(e) => {
+                    if (editingBooking) {
+                      setEditingBooking({
+                        ...editingBooking,
+                        children: parseInt(e.target.value) || 0
+                      })
+                    }
+                  }}
+                  className="mt-1 block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100"
+                />
+              </div>
+            </div>
+          </div>
+
+          <DialogFooter className="gap-2">
+            <Button
+              variant="outline"
+              onClick={() => setEditDialogOpen(false)}
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={() => {
+                if (editingBooking && onUpdate) {
+                  onUpdate(editingBooking.id, {
+                    bookingDate: editingBooking.bookingDate,
+                    bookingTime: editingBooking.bookingTime,
+                    adults: editingBooking.adults,
+                    children: editingBooking.children
+                  })
+                  setEditDialogOpen(false)
+                }
+              }}
+              className="bg-blue-600 hover:bg-blue-700"
+            >
+              <Check className="h-4 w-4 mr-2" />
+              Save Changes
             </Button>
           </DialogFooter>
         </DialogContent>

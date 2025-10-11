@@ -7,9 +7,9 @@ import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Users, Clock, ChevronLeft, ChevronRight, Facebook, Twitter, Instagram, Youtube, MapPin, Phone, Mail, Globe } from "lucide-react"
-import RoomBookingPopup from "@/components/room-booking-popup"
+import EventBookingPopup from "@/components/event-booking-popup"
 import { subscribeToClientEvents } from "@/lib/eventService"
-import { DiningRoom, SpecialEvent } from "@/lib/types"
+import { SpecialEvent } from "@/lib/types"
 import { specialEventService } from "../services/special-event-service"
 import { sliderService, SliderImage } from "../services/slider-service"
 import { Timestamp } from 'firebase/firestore'
@@ -231,7 +231,7 @@ export default function ReservationPage() {
               <div className="flex items-center justify-center w-full py-8">
                 <div className="text-center">
                   <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-2"></div>
-                  <p className="text-muted-foreground">Loading events...</p>
+                  <p className="text-gray-600">Loading events...</p>
                 </div>
               </div>
             ) : (
@@ -243,9 +243,15 @@ export default function ReservationPage() {
               >
                 <div className="relative">
                   <img src={event.image || "/placeholder.svg"} alt={event.name} className="w-full h-48 object-cover" />
-                  <Badge className="absolute top-4 right-4 bg-yellow-400 text-black font-semibold">
-                    Rp{formatCurrency(event.price)}/person
-                  </Badge>
+                  {event.hasPackages && event.packages && event.packages.length > 0 ? (
+                    <Badge className="absolute top-4 right-4 bg-yellow-400 text-black font-semibold">
+                      Package Available
+                    </Badge>
+                  ) : (
+                    <Badge className="absolute top-4 right-4 bg-yellow-400 text-black font-semibold">
+                      Rp{formatCurrency(event.price)}/person
+                    </Badge>
+                  )}
                   <div className="absolute bottom-4 left-4">
                     <Badge variant="outline" className="bg-white/90 text-black border-gray-300">
                       {event.eventType}
@@ -360,8 +366,7 @@ export default function ReservationPage() {
         </div>
       </div>
 
-      <RoomBookingPopup
-        selectedRoom={null}
+      <EventBookingPopup
         selectedEvent={selectedEvent}
         isOpen={isDialogOpen}
         onClose={() => setIsDialogOpen(false)}

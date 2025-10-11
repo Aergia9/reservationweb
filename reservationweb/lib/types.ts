@@ -1,3 +1,13 @@
+// Package interface for events with multiple pricing options
+export interface EventPackage {
+  id: string;
+  name: string;
+  description: string;
+  price: number;
+  peopleCount: number;
+  includes: string[];
+}
+
 // Shared types for Firebase events
 export interface FirebaseEvent {
   id: string;
@@ -18,6 +28,9 @@ export interface FirebaseEvent {
   maxGuests?: number; // For client-side display
   createdAt: string; // ISO string
   updatedAt: string; // ISO string
+  // Package support
+  hasPackages?: boolean;
+  packages?: EventPackage[];
 }
 
 // Client-side specific event interface (extends Firebase event)

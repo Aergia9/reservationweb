@@ -82,13 +82,26 @@ export default function BookingsPage() {
     }
   }
 
+  const updateBooking = async (bookingId: string, updatedData: Partial<Booking>) => {
+    try {
+      await updateDoc(doc(db, "booking", bookingId), {
+        ...updatedData,
+        updatedAt: new Date()
+      })
+      toast.success("Booking updated successfully")
+    } catch (error) {
+      console.error("Error updating booking:", error)
+      toast.error("Failed to update booking")
+    }
+  }
+
   const deleteBooking = async (bookingIds: string[]) => {
     if (bookingIds.length === 0) return
     
     const bookingDetails = bookingIds.map(id => {
       const booking = bookings.find(b => b.id === id)
       if (booking) {
-        const bookingName = booking.roomName || booking.eventName || "Unknown"
+        const bookingName = booking.eventName || "Unknown"
         return `${booking.firstName} ${booking.lastName} - ${bookingName} on ${booking.bookingDate}`
       }
       return "Unknown booking"
@@ -238,6 +251,7 @@ export default function BookingsPage() {
                         onStatusUpdate={updateBookingStatus}
                         onPaymentStatusUpdate={updatePaymentStatus}
                         onDelete={deleteBooking}
+                        onUpdate={updateBooking}
                       />
                     </CardContent>
                   </Card>

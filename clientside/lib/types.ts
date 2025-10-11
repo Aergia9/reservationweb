@@ -20,6 +20,9 @@ export interface FirebaseEvent {
   maxGuests?: number; // For client-side display
   createdAt: string; // ISO string
   updatedAt: string; // ISO string
+  // Package support
+  hasPackages?: boolean;
+  packages?: EventPackage[];
 }
 
 // Client-side specific event interface (extends Firebase event)
@@ -28,17 +31,14 @@ export interface ClientEvent extends FirebaseEvent {
   // Additional computed properties can be added here if needed
 }
 
-// Existing client interfaces for backward compatibility
-export interface DiningRoom {
-  id: number;
+// Package interface for events with multiple pricing options
+export interface EventPackage {
+  id: string;
   name: string;
-  price: number;
-  image: string;
   description: string;
-  amenities: string[];
-  maxGuests: number;
-  size: string;
-  style: string;
+  price: number;
+  peopleCount: number;
+  includes: string[];
 }
 
 export interface SpecialEvent {
@@ -55,6 +55,9 @@ export interface SpecialEvent {
   startDate?: string;
   endDate?: string;
   createdAt?: Timestamp;
+  // Package support
+  hasPackages?: boolean;
+  packages?: EventPackage[];
 }
 
 // Utility function to convert Firebase event to legacy SpecialEvent format
