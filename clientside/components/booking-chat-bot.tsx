@@ -40,6 +40,7 @@ interface EventInfo {
 }
 
 type ChatStep = 
+  | 'language_selection'
   | 'greeting'
   | 'ask_booking_id'
   | 'show_booking_info'
@@ -53,6 +54,8 @@ type ChatStep =
   | 'ask_more_changes'
   | 'completed'
 
+type Language = 'en' | 'id'
+
 interface BookingChatBotProps {
   isOpen: boolean
   onClose: () => void
@@ -61,7 +64,8 @@ interface BookingChatBotProps {
 export default function BookingChatBot({ isOpen, onClose }: BookingChatBotProps) {
   const [messages, setMessages] = useState<Message[]>([])
   const [inputValue, setInputValue] = useState("")
-  const [currentStep, setCurrentStep] = useState<ChatStep>('greeting')
+  const [currentStep, setCurrentStep] = useState<ChatStep>('language_selection')
+  const [language, setLanguage] = useState<Language>('en')
   const [bookingInfo, setBookingInfo] = useState<BookingInfo | null>(null)
   const [verificationData, setVerificationData] = useState({ email: '', phone: '' })
   const [editingField, setEditingField] = useState<'date' | 'time' | null>(null)
@@ -75,6 +79,97 @@ export default function BookingChatBot({ isOpen, onClose }: BookingChatBotProps)
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
 
+  // Translations object
+  const translations = {
+    en: {
+      languageSelection: "Welcome to Claro Booking Assistant! 🎉\n\nPlease select your preferred language:\n1️⃣ English\n2️⃣ Bahasa Indonesia",
+      greeting: "Hello! I'm your booking assistant. I can help you edit your existing booking details like date and time.\n\nPlease enter your booking ID:",
+      askBookingId: "Please enter your booking ID:",
+      searchingBooking: "🔍 Searching for your booking...",
+      bookingFound: "✅ Found your booking! Here are the details:\n\n📋 **Booking Information**\n🎫 Booking ID: {bookingId}\n👤 Name: {firstName} {lastName}\n🎉 Event: {eventName}\n📅 Date: {date}\n⏰ Time: {time}\n👥 Guests: {adults} Adults, {children} Children\n📊 Status: {status}\n\nPlease choose an option:\n1️⃣ Continue - Proceed to edit this booking\n2️⃣ Back - Start over with a different booking ID\n\nType 1 or 2:",
+      bookingNotFound: "❌ Sorry, I couldn't find a booking with that ID. Please check your booking ID and try again. Make sure to enter the 6-digit booking ID (like BUP001).",
+      invalidBookingId: "Please enter a valid 6-digit booking ID (letters and numbers only, like BUP001).",
+      securityVerification: "🔐 For security purposes, I need to verify your identity. Please provide:",
+      emailReceived: "📧 Email received. Now please enter your phone number:",
+      invalidEmail: "Please enter a valid email address.",
+      verificationSuccess: "✅ Verification successful! You can now edit your booking.",
+      editOptionsMessage: "What would you like to change?\n1️⃣ Date - Change booking date\n2️⃣ Time - Change booking time\n3️⃣ Both - Change both date and time\n4️⃣ Cancel - Exit without changes\n\nType 1, 2, 3, or 4:",
+      askEmail: "To proceed with editing your booking, I need to verify your identity.\n\nPlease enter your email address:",
+      askPhone: "Please enter your phone number:",
+      verificationFailed: "❌ The email or phone number doesn't match our records. Please make sure you entered the correct information. Let's try again.\n\nPlease enter your email address:",
+      editOptions: "What would you like to edit?\n\n1️⃣ Date - Change booking date\n2️⃣ Time - Change booking time\n3️⃣ Both - Change both date and time\n4️⃣ Cancel - Exit without changes\n\nType 1, 2, 3, or 4:",
+      currentDate: "📅 **Current date:**",
+      currentTime: "⏰ **Current time:**",
+      eventAvailable: "📅 **Event \"{eventName}\" is available from:**",
+      enterNewDate: "Please enter the new date within this range (DD-MM-YYYY format, e.g., 25-12-2025):",
+      enterNewTime: "Please enter the new time (HH:MM format, e.g., 14:30):",
+      invalidDate: "❌ Please enter a valid date in DD-MM-YYYY format (e.g., 25-12-2025):",
+      invalidTime: "❌ Please enter a valid time in HH:MM format (e.g., 14:30):",
+      fetchingEvent: "🔍 Fetching event information...",
+      validatingDate: "🔍 Validating date...",
+      newDateSet: "📅 New date set:",
+      newTimeSet: "⏰ New time set:",
+      continueEditing: "Would you like to change anything else?\n1️⃣ Change time as well\n2️⃣ Confirm this change only\n3️⃣ Cancel changes\n\nType 1, 2, or 3:",
+      confirmChanges: "Please confirm your changes:\n\n📅 New date: {date}\n⏰ New time: {time}\n\n1️⃣ Confirm changes\n2️⃣ Make more changes\n3️⃣ Cancel\n\nType 1, 2, or 3:",
+      updatingBooking: "✅ Updating your booking...",
+      bookingUpdated: "🎉 Great! Your booking has been successfully updated.",
+      noChanges: "No changes made. Have a great day! 👋",
+      completed: "Is there anything else I can help you with?\n\n1️⃣ Edit another booking\n2️⃣ Exit\n\nType 1 or 2:"
+    },
+    id: {
+      languageSelection: "Selamat datang di Asisten Booking Claro! 🎉\n\nSilakan pilih bahasa yang Anda inginkan:\n1️⃣ English\n2️⃣ Bahasa Indonesia",
+      greeting: "Halo! Saya asisten booking Anda. Saya dapat membantu Anda mengedit detail booking yang sudah ada seperti tanggal dan waktu.\n\nSilakan masukkan ID booking Anda:",
+      askBookingId: "Silakan masukkan ID booking Anda:",
+      searchingBooking: "🔍 Mencari booking Anda...",
+      bookingFound: "✅ Booking Anda ditemukan! Berikut adalah detailnya:\n\n📋 **Informasi Booking**\n🎫 ID Booking: {bookingId}\n👤 Nama: {firstName} {lastName}\n🎉 Event: {eventName}\n📅 Tanggal: {date}\n⏰ Waktu: {time}\n👥 Tamu: {adults} Dewasa, {children} Anak-anak\n📊 Status: {status}\n\nSilakan pilih opsi:\n1️⃣ Lanjutkan - Lanjut untuk mengedit booking ini\n2️⃣ Kembali - Mulai lagi dengan ID booking yang berbeda\n\nKetik 1 atau 2:",
+      bookingNotFound: "❌ Maaf, saya tidak dapat menemukan booking dengan ID tersebut. Silakan periksa ID booking Anda dan coba lagi. Pastikan memasukkan ID booking 6 digit (seperti BUP001).",
+      invalidBookingId: "Silakan masukkan ID booking 6 digit yang valid (huruf dan angka saja, seperti BUP001).",
+      securityVerification: "🔐 Untuk tujuan keamanan, saya perlu memverifikasi identitas Anda. Silakan berikan:",
+      emailReceived: "📧 Email diterima. Sekarang silakan masukkan nomor telepon Anda:",
+      invalidEmail: "Silakan masukkan alamat email yang valid.",
+      verificationSuccess: "✅ Verifikasi berhasil! Anda sekarang dapat mengedit booking Anda.",
+      editOptionsMessage: "Apa yang ingin Anda ubah?\n1️⃣ Tanggal - Ubah tanggal booking\n2️⃣ Waktu - Ubah waktu booking\n3️⃣ Keduanya - Ubah tanggal dan waktu\n4️⃣ Batal - Keluar tanpa perubahan\n\nKetik 1, 2, 3, atau 4:",
+      askEmail: "Untuk melanjutkan pengeditan booking Anda, saya perlu memverifikasi identitas Anda.\n\nSilakan masukkan alamat email Anda:",
+      askPhone: "Silakan masukkan nomor telepon Anda:",
+      verificationFailed: "❌ Email atau nomor telepon tidak sesuai dengan data kami. Pastikan Anda memasukkan informasi yang benar. Mari coba lagi.\n\nSilakan masukkan alamat email Anda:",
+      editOptions: "Apa yang ingin Anda edit?\n\n1️⃣ Tanggal - Ubah tanggal booking\n2️⃣ Waktu - Ubah waktu booking\n3️⃣ Keduanya - Ubah tanggal dan waktu\n4️⃣ Batal - Keluar tanpa perubahan\n\nKetik 1, 2, 3, atau 4:",
+      currentDate: "📅 **Tanggal saat ini:**",
+      currentTime: "⏰ **Waktu saat ini:**",
+      eventAvailable: "📅 **Event \"{eventName}\" tersedia dari:**",
+      enterNewDate: "Silakan masukkan tanggal baru dalam rentang ini (format DD-MM-YYYY, contoh: 25-12-2025):",
+      enterNewTime: "Silakan masukkan waktu baru (format HH:MM, contoh: 14:30):",
+      invalidDate: "❌ Silakan masukkan tanggal yang valid dalam format DD-MM-YYYY (contoh: 25-12-2025):",
+      invalidTime: "❌ Silakan masukkan waktu yang valid dalam format HH:MM (contoh: 14:30):",
+      fetchingEvent: "🔍 Mengambil informasi event...",
+      validatingDate: "🔍 Memvalidasi tanggal...",
+      newDateSet: "📅 Tanggal baru ditetapkan:",
+      newTimeSet: "⏰ Waktu baru ditetapkan:",
+      continueEditing: "Apakah Anda ingin mengubah yang lain?\n1️⃣ Ubah waktu juga\n2️⃣ Konfirmasi perubahan ini saja\n3️⃣ Batalkan perubahan\n\nKetik 1, 2, atau 3:",
+      confirmChanges: "Silakan konfirmasi perubahan Anda:\n\n📅 Tanggal baru: {date}\n⏰ Waktu baru: {time}\n\n1️⃣ Konfirmasi perubahan\n2️⃣ Buat perubahan lagi\n3️⃣ Batal\n\nKetik 1, 2, atau 3:",
+      updatingBooking: "✅ Memperbarui booking Anda...",
+      bookingUpdated: "🎉 Bagus! Booking Anda berhasil diperbarui.",
+      noChanges: "Tidak ada perubahan. Semoga hari Anda menyenangkan! 👋",
+      completed: "Apakah ada hal lain yang bisa saya bantu?\n\n1️⃣ Edit booking lain\n2️⃣ Keluar\n\nKetik 1 atau 2:"
+    }
+  }
+
+  // Helper function to get translated text
+  const t = (key: string, params?: Record<string, string>): string => {
+    const langTranslations = translations[language]
+    let text = (langTranslations as any)[key] || key
+    
+    console.log('Translation debug:', { language, key, text: text.substring(0, 50) })
+    
+    // Replace parameters in the text
+    if (params) {
+      Object.entries(params).forEach(([param, value]) => {
+        text = text.replace(`{${param}}`, value)
+      })
+    }
+    
+    return text
+  }
+
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" })
   }
@@ -85,8 +180,8 @@ export default function BookingChatBot({ isOpen, onClose }: BookingChatBotProps)
 
   useEffect(() => {
     if (isOpen && !hasInitialized) {
-      addBotMessage("Hello! 👋 I'm here to help you manage your booking. You can change your booking date and time. To get started, please provide your 6-digit booking ID.")
-      setCurrentStep('ask_booking_id')
+      addBotMessage(t('languageSelection'))
+      setCurrentStep('language_selection')
       setHasInitialized(true)
       // Auto-focus the input when chat opens
       setTimeout(() => {
@@ -94,6 +189,20 @@ export default function BookingChatBot({ isOpen, onClose }: BookingChatBotProps)
       }, 300)
     }
   }, [isOpen, hasInitialized])
+
+  // Reset chat state when closing
+  useEffect(() => {
+    if (!isOpen) {
+      setMessages([])
+      setCurrentStep('language_selection')
+      setLanguage('en')
+      setBookingInfo(null)
+      setVerificationData({ email: '', phone: '' })
+      setEditingField(null)
+      setNewBookingData({ date: '', time: '' })
+      setHasInitialized(false)
+    }
+  }, [isOpen])
 
   const addMessage = (type: 'bot' | 'user', content: string) => {
     const messageId = `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
@@ -383,63 +492,92 @@ export default function BookingChatBot({ isOpen, onClose }: BookingChatBotProps)
     const trimmedInput = input.trim()
     
     switch (currentStep) {
+      case 'language_selection':
+        if (trimmedInput === '1') {
+          console.log('Language set to English')
+          setLanguage('en')
+          // Use translation directly since state hasn't updated yet
+          addBotMessage(translations.en.greeting)
+          setCurrentStep('ask_booking_id')
+        } else if (trimmedInput === '2') {
+          console.log('Language set to Indonesian')
+          setLanguage('id')
+          // Use translation directly since state hasn't updated yet
+          addBotMessage(translations.id.greeting)
+          setCurrentStep('ask_booking_id')
+        } else {
+          console.log('Invalid language selection, current language:', language)
+          // For invalid selection, use current language state
+          const langSelection = language === 'id' ? translations.id.languageSelection : translations.en.languageSelection
+          addBotMessage(langSelection)
+        }
+        break
+
       case 'ask_booking_id':
         if (trimmedInput.length === 6 && /^[A-Z0-9]+$/.test(trimmedInput.toUpperCase())) {
-          addBotMessage("🔍 Searching for your booking...")
+          console.log('Adding searchingBooking message, language:', language)
+          const searchMessage = language === 'id' ? translations.id.searchingBooking : translations.en.searchingBooking
+          addBotMessage(searchMessage)
           const booking = await searchBookingById(trimmedInput)
           
           if (booking) {
             setBookingInfo(booking)
-            addBotMessage(`✅ Found your booking! Here are the details:
-
-📋 **Booking Information**
-🎫 Booking ID: ${booking.bookingId}
-👤 Name: ${booking.firstName} ${booking.lastName}
-🎉 Event: ${booking.eventName}
-📅 Date: ${formatDateForDisplay(booking.bookingDate)}
-⏰ Time: ${booking.bookingTime || 'Not specified'}
-👥 Guests: ${booking.adults} Adults, ${booking.children} Children
-📊 Status: ${booking.status}
-
-Please choose an option:
-1️⃣ Continue - Proceed to edit this booking
-2️⃣ Back - Start over with a different booking ID
-
-Type 1 or 2:`)
+            addBotMessage(t('bookingFound', {
+              bookingId: booking.bookingId,
+              firstName: booking.firstName,
+              lastName: booking.lastName,
+              eventName: booking.eventName,
+              date: formatDateForDisplay(booking.bookingDate),
+              time: booking.bookingTime || (language === 'en' ? 'Not specified' : 'Tidak ditentukan'),
+              adults: booking.adults.toString(),
+              children: booking.children.toString(),
+              status: booking.status
+            }))
             setCurrentStep('show_booking_info')
           } else {
-            addBotMessage("❌ Sorry, I couldn't find a booking with that ID. Please check your booking ID and try again. Make sure to enter the 6-digit booking ID (like BUP001).")
+            console.log('Adding bookingNotFound message, language:', language)
+            const message = language === 'id' ? translations.id.bookingNotFound : translations.en.bookingNotFound
+            addBotMessage(message)
           }
         } else {
-          addBotMessage("Please enter a valid 6-digit booking ID (letters and numbers only, like BUP001).")
+          console.log('Adding invalidBookingId message, language:', language)
+          const message = language === 'id' ? translations.id.invalidBookingId : translations.en.invalidBookingId
+          addBotMessage(message)
         }
         break
 
       case 'show_booking_info':
         if (trimmedInput === '1') {
-          addBotMessage(`🔐 For security purposes, I need to verify your identity. Please provide:
-
-1. **Email address** associated with this booking
-2. **Phone number** associated with this booking
-
-Please enter your email address first:`)
+          const emailInstruction = language === 'en' 
+            ? "1. **Email address** associated with this booking\n2. **Phone number** associated with this booking\n\nPlease enter your email address first:"
+            : "1. **Alamat email** yang terkait dengan booking ini\n2. **Nomor telepon** yang terkait dengan booking ini\n\nSilakan masukkan alamat email Anda terlebih dahulu:"
+          
+          addBotMessage(`${t('securityVerification')}\n\n${emailInstruction}`)
           setCurrentStep('ask_verification')
         } else if (trimmedInput === '2') {
-          addBotMessage("Sure! Let's start over. Please provide your 6-digit booking ID:")
+          const startOver = language === 'en' 
+            ? "Sure! Let's start over. Please provide your 6-digit booking ID:"
+            : "Baik! Mari mulai lagi. Silakan berikan ID booking 6 digit Anda:"
+          addBotMessage(startOver)
           setCurrentStep('ask_booking_id')
           setBookingInfo(null)
         } else {
-          addBotMessage("Please enter 1 to continue or 2 to go back.")
+          const instruction = language === 'en' 
+            ? "Please enter 1 to continue or 2 to go back."
+            : "Silakan ketik 1 untuk lanjut atau 2 untuk kembali."
+          addBotMessage(instruction)
         }
         break
 
       case 'ask_verification':
         if (trimmedInput.includes('@')) {
           setVerificationData(prev => ({ ...prev, email: trimmedInput }))
-          addBotMessage("📧 Email received. Now please enter your phone number:")
+          const emailMessage = language === 'id' ? translations.id.emailReceived : translations.en.emailReceived
+          addBotMessage(emailMessage)
           setCurrentStep('verify_details')
         } else {
-          addBotMessage("Please enter a valid email address.")
+          const invalidEmailMessage = language === 'id' ? translations.id.invalidEmail : translations.en.invalidEmail
+          addBotMessage(invalidEmailMessage)
         }
         break
 
@@ -449,18 +587,13 @@ Please enter your email address first:`)
         if (bookingInfo && 
             verificationData.email === bookingInfo.email && 
             trimmedInput === bookingInfo.phone) {
-          addBotMessage(`✅ Verification successful! You can now edit your booking.
-
-What would you like to change?
-1️⃣ Date - Change booking date
-2️⃣ Time - Change booking time  
-3️⃣ Both - Change both date and time
-4️⃣ Cancel - Exit without changes
-
-Type 1, 2, 3, or 4:`)
+          const successMessage = language === 'id' ? translations.id.verificationSuccess : translations.en.verificationSuccess
+          const optionsMessage = language === 'id' ? translations.id.editOptionsMessage : translations.en.editOptionsMessage
+          addBotMessage(`${successMessage}\n\n${optionsMessage}`)
           setCurrentStep('edit_options')
         } else {
-          addBotMessage("❌ The email or phone number doesn't match our records. Please make sure you entered the correct information. Let's try again.\n\nPlease enter your email address:")
+          const failMessage = language === 'id' ? translations.id.verificationFailed : translations.en.verificationFailed
+          addBotMessage(failMessage)
           setVerificationData({ email: '', phone: '' })
           setCurrentStep('ask_verification')
         }
