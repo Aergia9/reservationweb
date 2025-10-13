@@ -162,3 +162,21 @@
 .animate-fade-in {
   animation: fadeIn 0.4s ease-out;
 }
+
+/* Chat bot utility classes */
+.chat-resizing {
+  cursor: nw-resize !important;
+  user-select: none;
+}
+
+/* Mobile safe area for devices with notches */
+@supports (padding: max(0px)) {
+  .safe-area-inset-bottom {
+    padding-bottom: max(1rem, env(safe-area-inset-bottom));
+  }
+}
+
+/* Smooth transitions for chat bot */
+.chat-transition {
+  transition: all 0.2s ease-in-out;
+}

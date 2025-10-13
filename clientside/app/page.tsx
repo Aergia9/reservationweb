@@ -6,8 +6,9 @@ import { useState, useEffect } from "react"
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { Users, Clock, ChevronLeft, ChevronRight, Facebook, Twitter, Instagram, Youtube, MapPin, Phone, Mail, Globe } from "lucide-react"
+import { Users, Clock, ChevronLeft, ChevronRight, Facebook, Twitter, Instagram, Youtube, MapPin, Phone, Mail, Globe, MessageCircle } from "lucide-react"
 import EventBookingPopup from "@/components/event-booking-popup"
+import BookingChatBot from "@/components/booking-chat-bot"
 import { subscribeToClientEvents } from "@/lib/eventService"
 import { SpecialEvent } from "@/lib/types"
 import { specialEventService } from "../services/special-event-service"
@@ -24,6 +25,7 @@ export default function ReservationPage() {
 
   const [selectedEvent, setSelectedEvent] = useState<SpecialEvent | null>(null)
   const [isDialogOpen, setIsDialogOpen] = useState(false)
+  const [isChatBotOpen, setIsChatBotOpen] = useState(false)
   const [firebaseEvents, setFirebaseEvents] = useState<SpecialEvent[]>([])
   const [sliderImages, setSliderImages] = useState<SliderImage[]>([])
   const [loading, setLoading] = useState(true)
@@ -366,11 +368,32 @@ export default function ReservationPage() {
         </div>
       </div>
 
+      {/* Floating Chat Button */}
+      <div className="fixed bottom-20 right-6 z-50">
+        <div className="relative">
+          <Button
+            onClick={() => setIsChatBotOpen(true)}
+            className="h-14 w-14 rounded-full bg-blue-500 hover:bg-blue-600 shadow-lg transition-all duration-200 hover:scale-110"
+            size="lg"
+            title="Chat with us to edit your booking"
+          >
+            <MessageCircle className="h-6 w-6 text-white" />
+          </Button>
+          {/* Online indicator */}
+          <div className="absolute -top-1 -right-1 h-4 w-4 bg-green-400 rounded-full border-2 border-white animate-pulse"></div>
+        </div>
+      </div>
+
       <EventBookingPopup
         selectedEvent={selectedEvent}
         isOpen={isDialogOpen}
         onClose={() => setIsDialogOpen(false)}
         onSubmit={handleSubmit}
+      />
+      
+      <BookingChatBot
+        isOpen={isChatBotOpen}
+        onClose={() => setIsChatBotOpen(false)}
       />
     </div>
   )
