@@ -1,9 +1,6 @@
 "use client"
 
 import type React from "react"
-import { useEffect, useState } from "react"
-import { Timestamp } from 'firebase/firestore'
-
 import { useState, useEffect } from "react"
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -17,9 +14,6 @@ import { specialEventService } from "../services/special-event-service"
 import { sliderService, SliderImage } from "../services/slider-service"
 import { Timestamp } from 'firebase/firestore'
 import { formatCurrency } from "@/lib/utils"
-
-
-
 
 
 
@@ -105,11 +99,6 @@ export default function ReservationPage() {
       console.log("Special event booking submitted for:", selectedEvent?.name)
     }
     setIsDialogOpen(false)
-  }
-
-  const handleRoomDetailsClick = (room: DiningRoom) => {
-    setSelectedRoomDetails(room)
-    setIsRoomDetailsOpen(true)
   }
 
   return (
@@ -265,11 +254,6 @@ export default function ReservationPage() {
                     <Badge variant="outline" className="bg-white/90 text-black border-gray-300">
                       {event.eventType}
                     </Badge>
-                    <div className="absolute bottom-4 left-4">
-                      <Badge variant="outline" className="bg-white/90 text-black">
-                        {event.eventType}
-                      </Badge>
-                    </div>
                   </div>
                 </div>
                 <CardContent className="p-6 bg-white">

@@ -114,7 +114,12 @@ export default function BookingChatBot({ isOpen, onClose }: BookingChatBotProps)
       updatingBooking: "✅ Updating your booking...",
       bookingUpdated: "🎉 Great! Your booking has been successfully updated.",
       noChanges: "No changes made. Have a great day! 👋",
-      completed: "Is there anything else I can help you with?\n\n1️⃣ Edit another booking\n2️⃣ Exit\n\nType 1 or 2:"
+      completed: "Is there anything else I can help you with?\n\n1️⃣ Edit another booking\n2️⃣ Exit\n\nType 1 or 2:",
+      dateAlreadyPassed: "❌ The date {date} has already passed. Please choose a future date.\n\nPlease enter a valid date (DD-MM-YYYY format):",
+      dateNotInEventPeriod: "❌ The date {date} is not within the event period. The event \"{eventName}\" runs from {startDate} to {endDate}. Please choose a date within this range.\n\nPlease enter a valid date (DD-MM-YYYY format):",
+      invalidDateFormat: "❌ Please enter a valid date in DD-MM-YYYY format (e.g., 25-12-2025):",
+      dateTooFarFuture: "❌ The date {date} is too far in the future. Please choose a date within the next 2 years.\n\nPlease enter a valid date (DD-MM-YYYY format):",
+      eventInfoNotFound: "⚠️ Could not verify event date range, but the date {date} appears valid. Proceeding with basic validation."
     },
     id: {
       languageSelection: "Selamat datang di Asisten Booking Claro! 🎉\n\nSilakan pilih bahasa yang Anda inginkan:\n1️⃣ English\n2️⃣ Bahasa Indonesia",
@@ -149,7 +154,12 @@ export default function BookingChatBot({ isOpen, onClose }: BookingChatBotProps)
       updatingBooking: "✅ Memperbarui booking Anda...",
       bookingUpdated: "🎉 Bagus! Booking Anda berhasil diperbarui.",
       noChanges: "Tidak ada perubahan. Semoga hari Anda menyenangkan! 👋",
-      completed: "Apakah ada hal lain yang bisa saya bantu?\n\n1️⃣ Edit booking lain\n2️⃣ Keluar\n\nKetik 1 atau 2:"
+      completed: "Apakah ada hal lain yang bisa saya bantu?\n\n1️⃣ Edit booking lain\n2️⃣ Keluar\n\nKetik 1 atau 2:",
+      dateAlreadyPassed: "❌ Tanggal {date} sudah terlewat. Silakan pilih tanggal yang akan datang.\n\nSilakan masukkan tanggal yang valid (format DD-MM-YYYY):",
+      dateNotInEventPeriod: "❌ Tanggal {date} tidak dalam periode event. Event \"{eventName}\" berlangsung dari {startDate} sampai {endDate}. Silakan pilih tanggal dalam rentang ini.\n\nSilakan masukkan tanggal yang valid (format DD-MM-YYYY):",
+      invalidDateFormat: "❌ Silakan masukkan tanggal yang valid dalam format DD-MM-YYYY (contoh: 25-12-2025):",
+      dateTooFarFuture: "❌ Tanggal {date} terlalu jauh di masa depan. Silakan pilih tanggal dalam 2 tahun ke depan.\n\nSilakan masukkan tanggal yang valid (format DD-MM-YYYY):",
+      eventInfoNotFound: "⚠️ Tidak dapat memverifikasi rentang tanggal event, tetapi tanggal {date} tampak valid. Melanjutkan dengan validasi dasar."
     }
   }
 
@@ -407,7 +417,7 @@ export default function BookingChatBot({ isOpen, onClose }: BookingChatBotProps)
       if (selectedDate < today) {
         return {
           isValid: false,
-          errorMessage: `The date ${inputDate} has already passed. Please choose a future date.`
+          errorMessage: t('dateAlreadyPassed', { date: inputDate })
         }
       }
       
@@ -417,7 +427,12 @@ export default function BookingChatBot({ isOpen, onClose }: BookingChatBotProps)
         const eventEndDisplay = formatDateForDisplay(eventInfo.endDate)
         return {
           isValid: false,
-          errorMessage: `The date ${inputDate} is not within the event period. The event "${eventInfo.name}" runs from ${eventStartDisplay} to ${eventEndDisplay}. Please choose a date within this range.`
+          errorMessage: t('dateNotInEventPeriod', { 
+            date: inputDate, 
+            eventName: eventInfo.name,
+            startDate: eventStartDisplay,
+            endDate: eventEndDisplay
+          })
         }
       }
       
@@ -672,9 +687,7 @@ Let's start with the date. Please enter the new date within this range (DD-MM-YY
               const validation = validateDateForBooking(trimmedInput, eventInfo)
               
               if (!validation.isValid) {
-                addBotMessage(`❌ ${validation.errorMessage}
-
-Please enter a valid date (DD-MM-YYYY format):`)
+                addBotMessage(validation.errorMessage || t('invalidDateFormat'))
                 return
               }
             } else {
@@ -688,9 +701,7 @@ Please enter a valid date (DD-MM-YYYY format):`)
               selectedDate.setHours(0, 0, 0, 0)
               
               if (selectedDate < today) {
-                addBotMessage(`❌ The date ${trimmedInput} has already passed. Please choose a future date.
-
-Please enter a valid date (DD-MM-YYYY format):`)
+                addBotMessage(t('dateAlreadyPassed', { date: trimmedInput }))
                 return
               }
               
@@ -699,13 +710,11 @@ Please enter a valid date (DD-MM-YYYY format):`)
               maxFutureDate.setFullYear(today.getFullYear() + 2)
               
               if (selectedDate > maxFutureDate) {
-                addBotMessage(`❌ The date ${trimmedInput} is too far in the future. Please choose a date within the next 2 years.
-
-Please enter a valid date (DD-MM-YYYY format):`)
+                addBotMessage(t('dateTooFarFuture', { date: trimmedInput }))
                 return
               }
               
-              addBotMessage(`⚠️ Could not verify event date range, but the date ${trimmedInput} appears valid. Proceeding with basic validation.`)
+              addBotMessage(t('eventInfoNotFound', { date: trimmedInput }))
             }
           }
           
@@ -727,7 +736,7 @@ Type 1, 2, or 3:`)
             setCurrentStep('edit_time')
           }
         } else {
-          addBotMessage("Please enter a valid date in DD-MM-YYYY format (e.g., 25-12-2025)")
+          addBotMessage(t('invalidDateFormat'))
         }
         break
 
