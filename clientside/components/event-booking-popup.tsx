@@ -347,7 +347,60 @@ export default function EventBookingPopup({ selectedEvent, isOpen, onClose, onSu
     const selected = new Date(selectedDate)
     const start = new Date(startDate)
     const end = new Date(endDate)
-    return selected >= start && selected <= end
+    const today = new Date()
+    
+    // Set times to start of day for accurate comparison
+    today.setHours(0, 0, 0, 0)
+    selected.setHours(0, 0, 0, 0)
+    start.setHours(0, 0, 0, 0)
+    end.setHours(0, 0, 0, 0)
+    
+    return selected >= today && selected >= start && selected <= end
+  }
+
+  const getMinBookingDate = () => {
+    const today = new Date()
+    const todayStr = today.toISOString().split('T')[0]
+    
+    if (selectedEvent?.startDate) {
+      const eventStart = new Date(selectedEvent.startDate)
+      const eventStartStr = eventStart.toISOString().split('T')[0]
+      
+      // Return the later date between today and event start
+      return todayStr > eventStartStr ? todayStr : eventStartStr
+    }
+    
+    return todayStr
+  }
+
+  const validateBookingDate = (selectedDate: string, startDate: string, endDate: string) => {
+    if (!selectedDate || !startDate || !endDate) {
+      return { isValid: false, message: 'Please select a valid date' }
+    }
+    
+    const selected = new Date(selectedDate)
+    const start = new Date(startDate)
+    const end = new Date(endDate)
+    const today = new Date()
+    
+    // Set times to start of day for accurate comparison
+    today.setHours(0, 0, 0, 0)
+    selected.setHours(0, 0, 0, 0)
+    start.setHours(0, 0, 0, 0)
+    end.setHours(0, 0, 0, 0)
+    
+    if (selected < today) {
+      return { isValid: false, message: 'Cannot book for past dates. Please select a future date.' }
+    }
+    
+    if (selected < start || selected > end) {
+      return { 
+        isValid: false, 
+        message: `Booking date must be between ${formatDateDisplay(startDate)} and ${formatDateDisplay(endDate)}` 
+      }
+    }
+    
+    return { isValid: true, message: '' }
   }
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
@@ -403,8 +456,9 @@ export default function EventBookingPopup({ selectedEvent, isOpen, onClose, onSu
     
     // Validate date range for events
     if (selectedEvent && selectedEvent.startDate && selectedEvent.endDate) {
-      if (!isDateInRange(formData.bookingDate, selectedEvent.startDate, selectedEvent.endDate)) {
-        setError(`Booking date must be between ${formatDateDisplay(selectedEvent.startDate)} and ${formatDateDisplay(selectedEvent.endDate)}`)
+      const dateValidation = validateBookingDate(formData.bookingDate, selectedEvent.startDate, selectedEvent.endDate)
+      if (!dateValidation.isValid) {
+        setError(dateValidation.message)
         return
       }
     }
@@ -621,7 +675,7 @@ export default function EventBookingPopup({ selectedEvent, isOpen, onClose, onSu
                           id="bookingDate" 
                           value={formData.bookingDate}
                           onChange={handleInputChange}
-                          min={selectedEvent.startDate || undefined}
+                          min={getMinBookingDate()}
                           max={selectedEvent.endDate || undefined}
                           required 
                           className="bg-white border-gray-300 text-gray-800"

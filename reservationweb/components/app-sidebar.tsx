@@ -6,6 +6,7 @@ import {
   IconDashboard,
   IconFolder,
   IconInnerShadowTop,
+  IconCalendarEvent,
 } from "@tabler/icons-react"
 import { cn } from "@/lib/utils"
 import { NavUser } from "@/components/nav-user"
@@ -32,13 +33,18 @@ const data = {
       icon: IconDashboard,
     },
     {
-      title: "Event",
-      url: "/event",
+      title: "Event Calendar",
+      url: "/event-calendar",
       icon: IconFolder,
     },
     {
-      title: "Analytics",
-      url: "/analytics",
+      title: "Bookings",
+      url: "/bookings",
+      icon: IconCalendarEvent,
+    },
+    {
+      title: "Event",
+      url: "/event",
       icon: IconChartBar,
     },
   ],

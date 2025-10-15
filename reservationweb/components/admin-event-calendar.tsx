@@ -3,7 +3,7 @@
 import type React from "react"
 import { Timestamp } from 'firebase/firestore'
 
-import { useState, useMemo } from "react"
+import { useState, useMemo, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
@@ -14,108 +14,215 @@ import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Calendar, ChevronLeft, ChevronRight, Plus, Filter, Trash2, Clock, MapPin } from "lucide-react"
 import { cn } from "@/lib/utils"
-import { eventService } from '@/services/event-service'
+import { toast } from "sonner"
+import { db } from "@/lib/firebase"
+import { collection, onSnapshot, deleteDoc, doc, Timestamp } from "firebase/firestore"
+
+// Interface for special events from analytics page
+interface SpecialEvent {
+  id: string;
+  name: string;
+  description: string;
+  price: number;
+  eventType: string;
+  duration: string;
+  minGuests: number;
+  includes: string[];
+  image?: string;
+  startDate?: string;
+  endDate?: string;
+  createdAt: Timestamp;
+  updatedAt: Timestamp;
+}
+
+// Convert special event to calendar event format
+const specialEventToCalendarEvent = (specialEvent: SpecialEvent, index: number): Event => {
+  // Use actual event dates if provided, otherwise use creation date or current date
+  let startDate: Date;
+  let endDate: Date;
+  
+  if (specialEvent.startDate) {
+    startDate = new Date(specialEvent.startDate);
+    endDate = specialEvent.endDate ? new Date(specialEvent.endDate) : new Date(specialEvent.startDate);
+  } else {
+    // Fallback to creation date or current date if no event dates specified
+    const fallbackDate = specialEvent.createdAt ? specialEvent.createdAt.toDate() : new Date();
+    startDate = fallbackDate;
+    endDate = fallbackDate;
+  }
+  
+  console.log(`Converting event "${specialEvent.name}" with dates:`, {
+    startDate: startDate.toLocaleDateString(),
+    endDate: endDate.toLocaleDateString(),
+    originalStartDate: specialEvent.startDate,
+    originalEndDate: specialEvent.endDate
+  });
+  
+  // Format event dates for display
+  const eventDatesText = specialEvent.startDate && specialEvent.endDate ? (
+    specialEvent.startDate === specialEvent.endDate ? 
+      `Event Date: ${new Date(specialEvent.startDate).toLocaleDateString()}` :
+      `Event Dates: ${new Date(specialEvent.startDate).toLocaleDateString()} - ${new Date(specialEvent.endDate).toLocaleDateString()}`
+  ) : 'Event Dates: Flexible';
+
+  return {
+    id: specialEvent.id,
+    title: specialEvent.name,
+    description: `${specialEvent.description}\n\nPrice: Rp${specialEvent.price.toLocaleString()}\nType: ${specialEvent.eventType}\n${eventDatesText}\nMin Guests: ${specialEvent.minGuests}${specialEvent.includes.length > 0 ? `\nIncludes: ${specialEvent.includes.join(', ')}` : ''}`,
+    startDate: startDate,
+    endDate: endDate,
+    startTime: "18:00", // Default evening time for special events
+    endTime: "21:00", // Default 3-hour duration
+    category: "event" as const,
+    location: "Hotel Restaurant"
+  };
+};
+
+interface Event {
+  id: string;
+  title: string;
+  description: string;
+  startDate: Date;
+  endDate: Date;
+  startTime: string;
+  endTime: string;
+  category: "meeting" | "deadline" | "event" | "reminder";
+  location?: string;
+}
 
 type ViewMode = "day" | "week" | "month" | "year"
 
 type DatePickerMode = "month" | "year" | "decade"
 
-type Event = {
-  id: string
-  title: string
-  description: string
-  startDate: Date
-  endDate: Date
-  startTime: string
-  endTime: string
-  category: "meeting" | "deadline" | "event" | "reminder"
-  location?: string
-  price?: number
-  includes?: string[]
-  minGuests?: number
-  isSpecialEvent?: boolean
-}
-
-const mockEvents: Event[] = [
-  {
-    id: "1",
-    title: "Team Meeting",
-    description: "Weekly team sync",
-    startDate: new Date(2024, 11, 15),
-    endDate: new Date(2024, 11, 15),
-    startTime: "09:00",
-    endTime: "10:00",
-    category: "meeting",
-    location: "Conference Room A",
-  },
-  {
-    id: "2",
-    title: "Project Deadline",
-    description: "Submit final report",
-    startDate: new Date(2024, 11, 20),
-    endDate: new Date(2024, 11, 20),
-    startTime: "17:00",
-    endTime: "17:30",
-    category: "deadline",
-  },
-  {
-    id: "3",
-    title: "Company Event",
-    description: "Annual holiday party",
-    startDate: new Date(2024, 11, 22),
-    endDate: new Date(2024, 11, 22),
-    startTime: "18:00",
-    endTime: "22:00",
-    category: "event",
-    location: "Main Hall",
-  },
-  {
-    id: "4",
-    title: "Conference Trip",
-    description: "Tech conference in San Francisco",
-    startDate: new Date(2024, 11, 18),
-    endDate: new Date(2024, 11, 21),
-    startTime: "08:00",
-    endTime: "18:00",
-    category: "event",
-    location: "San Francisco",
-  },
-  {
-    id: "5",
-    title: "Client Presentation",
-    description: "Present quarterly results",
-    startDate: new Date(2024, 11, 15),
-    endDate: new Date(2024, 11, 15),
-    startTime: "14:00",
-    endTime: "15:30",
-    category: "meeting",
-    location: "Conference Room B",
-  },
-]
+// Special events are loaded from Firebase (created in Analytics page)
 
 export function AdminEventCalendar() {
   const [currentDate, setCurrentDate] = useState(new Date())
   const [viewMode, setViewMode] = useState<ViewMode>("month")
   const [datePickerMode, setDatePickerMode] = useState<DatePickerMode>("month")
-  const [events, setEvents] = useState<Event[]>(mockEvents)
+  const [events, setEvents] = useState<Event[]>([])
+  const [loading, setLoading] = useState(true)
   const [selectedCategory, setSelectedCategory] = useState<string>("all")
-  const [isAddEventOpen, setIsAddEventOpen] = useState(false)
   const [isYearEventsOpen, setIsYearEventsOpen] = useState(false)
   const [selectedYear, setSelectedYear] = useState<number | null>(null)
-  const [newEvent, setNewEvent] = useState({
-    title: "",
-    description: "",
-    startDate: "",
-    endDate: "",
-    startTime: "",
-    endTime: "",
-    category: "meeting" as Event["category"],
-    location: "",
-    price: "",
-    includes: "",
-    minGuests: "",
-    eventType: ""
-  })
+
+
+
+  // Subscribe to special events from Firebase
+  useEffect(() => {
+    console.log('Setting up special events listener for calendar...');
+    
+    try {
+      const unsubscribe = onSnapshot(
+        collection(db, 'event'),
+        (snapshot) => {
+          console.log('Firebase snapshot received, document count:', snapshot.size);
+          
+          const specialEvents: SpecialEvent[] = [];
+          snapshot.forEach((doc) => {
+            const data = doc.data();
+            console.log('Processing document:', doc.id, data);
+            
+            // Only process documents that have the special event structure
+            if (data.name && data.price !== undefined) {
+              specialEvents.push({
+                id: doc.id,
+                ...data
+              } as SpecialEvent);
+            }
+          });
+          
+          console.log('Found special events:', specialEvents);
+          
+          // Convert special events to calendar events
+          const calendarEvents = specialEvents.map((event, index) => 
+            specialEventToCalendarEvent(event, index)
+          );
+          
+          console.log(`Loaded ${calendarEvents.length} special events for calendar`);
+          console.log('Calendar events data:', calendarEvents);
+          
+          // Always add test events for now to verify calendar works
+          const testEvents: Event[] = [
+            {
+              id: 'test-event-1',
+              title: 'Wine Tasting Dinner',
+              description: 'An exquisite evening featuring a 5-course dinner paired with premium wines\n\nPrice: Rp150,000\nType: Culinary Experience\nDuration: 3 hours\nMin Guests: 2\nIncludes: 5-Course Dinner, Wine Pairings, Sommelier Service',
+              startDate: new Date(2025, 8, 29), // September 29, 2025
+              endDate: new Date(2025, 8, 29),
+              startTime: "18:00",
+              endTime: "21:00",
+              category: "event" as const,
+              location: "Hotel Restaurant"
+            },
+            {
+              id: 'test-event-2',
+              title: 'Chef\'s Table Experience',
+              description: 'Intimate dining experience with the chef\n\nPrice: Rp200,000\nType: Culinary Experience\nDuration: 2.5 hours\nMin Guests: 2\nIncludes: Chef Interaction, Premium Menu, Wine Selection',
+              startDate: new Date(2025, 8, 15), // September 15, 2025
+              endDate: new Date(2025, 8, 15),
+              startTime: "19:00",
+              endTime: "21:30",
+              category: "event" as const,
+              location: "Chef's Table"
+            }
+          ];
+          
+          // Combine Firebase events with test events
+          const allEvents = [...calendarEvents, ...testEvents];
+          console.log('Setting all events:', allEvents);
+          
+          setEvents(allEvents);
+          setLoading(false);
+        },
+        (error) => {
+          console.error('Error loading special events for calendar:', error);
+          
+          // On error, still show test events
+          const testEvents: Event[] = [
+            {
+              id: 'fallback-event',
+              title: 'Sample Special Event',
+              description: 'This is a sample event (Firebase connection failed)\n\nPrice: Rp100,000\nType: Test Event',
+              startDate: new Date(2025, 8, 29),
+              endDate: new Date(2025, 8, 29),
+              startTime: "18:00",
+              endTime: "21:00",
+              category: "event" as const,
+              location: "Hotel"
+            }
+          ];
+          
+          setEvents(testEvents);
+          setLoading(false);
+        }
+      );
+
+      return () => unsubscribe();
+    } catch (error) {
+      console.error('Error setting up Firebase listener:', error);
+      
+      // Fallback: show static test events
+      const testEvents: Event[] = [
+        {
+          id: 'static-event',
+          title: 'Static Test Event',
+          description: 'This is a static test event (Firebase setup failed)\n\nPrice: Rp75,000\nType: Test',
+          startDate: new Date(2025, 8, 29),
+          endDate: new Date(2025, 8, 29),
+          startTime: "18:00",
+          endTime: "21:00",
+          category: "event" as const,
+          location: "Test Location"
+        }
+      ];
+      
+      setEvents(testEvents);
+      setLoading(false);
+    }
+  }, [])
+
+
 
   const categoryColors = {
     meeting: "bg-blue-100 text-blue-800 border-blue-200",
@@ -128,56 +235,16 @@ export function AdminEventCalendar() {
     return events.filter((event) => selectedCategory === "all" || event.category === selectedCategory)
   }, [events, selectedCategory])
 
-  const addEvent = async () => {
-    if (!newEvent.title || !newEvent.startDate || !newEvent.startTime || !newEvent.price) {
-      alert("Please fill in all required fields");
-      return;
-    }
 
+
+  const handleRemoveEvent = async (eventId: string) => {
     try {
-      const eventData = {
-        name: newEvent.title,
-        description: newEvent.description || '',
-        price: parseFloat(newEvent.price),
-        image: "/placeholder.svg", // Default image
-        includes: newEvent.includes ? newEvent.includes.split(',').map(item => item.trim()) : [],
-        duration: `${newEvent.startTime} - ${newEvent.endTime}`,
-        eventType: newEvent.eventType || "General",
-        minGuests: parseInt(newEvent.minGuests) || 1,
-      };
-
-      console.log('Sending event data:', eventData); // Debug log
-
-      // Add to Firebase
-      const result = await eventService.addEvent(eventData);
-      console.log("Event added successfully:", result);
-
-      // Reset form and show success
-      setNewEvent({
-        title: "",
-        description: "",
-        startDate: "",
-        endDate: "",
-        startTime: "",
-        endTime: "",
-        category: "event",
-        location: "",
-        price: "",
-        includes: "",
-        minGuests: "",
-        eventType: ""
-      })
-      setIsAddEventOpen(false);
-      alert("Event added successfully!")
-
+      await deleteDoc(doc(db, 'event', eventId));
+      console.log('Special event deleted:', eventId);
     } catch (error) {
-      console.error("Error adding event:", error);
-      alert("Failed to add event. Please check console for details.");
+      console.error("Failed to delete special event:", error);
+      toast.error("Failed to delete event. Please try again.");
     }
-  }
-
-  const removeEvent = (eventId: string) => {
-    setEvents(events.filter((event) => event.id !== eventId))
   }
 
   const isMultiDayEvent = (event: Event) => {
@@ -185,10 +252,16 @@ export function AdminEventCalendar() {
   }
 
   const isDateInEventRange = (date: Date, event: Event) => {
-    const dateTime = date.getTime()
-    const startTime = event.startDate.getTime()
-    const endTime = event.endDate.getTime()
-    return dateTime >= startTime && dateTime <= endTime
+    // Compare dates only (ignore time) by setting all times to midnight
+    const checkDate = new Date(date.getFullYear(), date.getMonth(), date.getDate())
+    const startDate = new Date(event.startDate.getFullYear(), event.startDate.getMonth(), event.startDate.getDate())
+    const endDate = new Date(event.endDate.getFullYear(), event.endDate.getMonth(), event.endDate.getDate())
+    
+    const checkTime = checkDate.getTime()
+    const startTime = startDate.getTime()
+    const endTime = endDate.getTime()
+    
+    return checkTime >= startTime && checkTime <= endTime
   }
 
   const navigateDate = (direction: "prev" | "next") => {
@@ -290,7 +363,7 @@ export function AdminEventCalendar() {
         <MonthView
           currentDate={currentDate}
           events={filteredEvents}
-          onRemoveEvent={removeEvent}
+          onRemoveEvent={handleRemoveEvent}
           categoryColors={categoryColors}
           isDateInEventRange={isDateInEventRange}
           isMultiDayEvent={isMultiDayEvent}
@@ -305,7 +378,7 @@ export function AdminEventCalendar() {
         <WeekView
           currentDate={currentDate}
           events={filteredEvents}
-          onRemoveEvent={removeEvent}
+          onRemoveEvent={handleRemoveEvent}
           categoryColors={categoryColors}
           isDateInEventRange={isDateInEventRange}
         />
@@ -315,7 +388,7 @@ export function AdminEventCalendar() {
         <DayView
           currentDate={currentDate}
           events={filteredEvents}
-          onRemoveEvent={removeEvent}
+          onRemoveEvent={handleRemoveEvent}
           categoryColors={categoryColors}
           isDateInEventRange={isDateInEventRange}
         />
@@ -325,6 +398,26 @@ export function AdminEventCalendar() {
     }
   }
 
+  // Show loading state while Firebase data is loading
+  if (loading) {
+    return (
+      <div className="flex flex-col space-y-2 w-full h-full min-h-screen">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <Calendar className="h-4 w-4 text-primary" />
+            <h1 className="text-lg font-semibold text-foreground">Event Management</h1>
+          </div>
+        </div>
+        <div className="flex items-center justify-center h-64">
+          <div className="text-center">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-2"></div>
+            <p className="text-muted-foreground">Loading events...</p>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
   return (
     // root becomes a full-height flex column so the calendar can expand
     <div className="flex flex-col space-y-2 w-full h-full min-h-screen">
@@ -332,159 +425,11 @@ export function AdminEventCalendar() {
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
           <Calendar className="h-4 w-4 text-primary" />
-          <h1 className="text-lg font-semibold text-foreground">Event Management</h1>
+          <h1 className="text-lg font-semibold text-foreground">Special Events Management</h1>
         </div>
 
-        <Dialog open={isAddEventOpen} onOpenChange={setIsAddEventOpen}>
-          <DialogTrigger asChild>
-            <Button size="sm" className="bg-primary hover:bg-primary/90">
-              <Plus className="h-3 w-3 mr-1" />
-              Add Event
-            </Button>
-          </DialogTrigger>
-          <DialogContent className="sm:max-w-md">
-            <DialogHeader>
-              <DialogTitle>Add New Event</DialogTitle>
-            </DialogHeader>
-            <div className="space-y-4">
-              <div>
-                <Label htmlFor="title">Title</Label>
-                <Input
-                  id="title"
-                  value={newEvent.title}
-                  onChange={(e) => setNewEvent({ ...newEvent, title: e.target.value })}
-                  placeholder="Event title"
-                />
-              </div>
-              <div>
-                <Label htmlFor="description">Description</Label>
-                <Textarea
-                  id="description"
-                  value={newEvent.description}
-                  onChange={(e) => setNewEvent({ ...newEvent, description: e.target.value })}
-                  placeholder="Event description"
-                />
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <Label htmlFor="startDate">Start Date</Label>
-                  <Input
-                    id="startDate"
-                    type="date"
-                    value={newEvent.startDate}
-                    onChange={(e) => setNewEvent({ ...newEvent, startDate: e.target.value })}
-                  />
-                </div>
-                <div>
-                  <Label htmlFor="endDate">End Date (Optional)</Label>
-                  <Input
-                    id="endDate"
-                    type="date"
-                    value={newEvent.endDate}
-                    onChange={(e) => setNewEvent({ ...newEvent, endDate: e.target.value })}
-                    min={newEvent.startDate}
-                  />
-                </div>
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <Label htmlFor="category">Category</Label>
-                  <Select
-                    value={newEvent.category}
-                    onValueChange={(value: Event["category"]) => setNewEvent({ ...newEvent, category: value })}
-                  >
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="meeting">Meeting</SelectItem>
-                      <SelectItem value="deadline">Deadline</SelectItem>
-                      <SelectItem value="event">Event</SelectItem>
-                      <SelectItem value="reminder">Reminder</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <Label htmlFor="startTime">Start Time</Label>
-                  <Input
-                    id="startTime"
-                    type="time"
-                    value={newEvent.startTime}
-                    onChange={(e) => setNewEvent({ ...newEvent, startTime: e.target.value })}
-                  />
-                </div>
-                <div>
-                  <Label htmlFor="endTime">End Time</Label>
-                  <Input
-                    id="endTime"
-                    type="time"
-                    value={newEvent.endTime}
-                    onChange={(e) => setNewEvent({ ...newEvent, endTime: e.target.value })}
-                  />
-                </div>
-              </div>
-              <div>
-                <Label htmlFor="location">Location (Optional)</Label>
-                <Input
-                  id="location"
-                  value={newEvent.location}
-                  onChange={(e) => setNewEvent({ ...newEvent, location: e.target.value })}
-                  placeholder="Event location"
-                />
-              </div>
 
-              {/* Show these fields only when category is "event" */}
-              {newEvent.category === "event" && (
-                <>
-                  <div>
-                    <Label htmlFor="price">Price per Person</Label>
-                    <Input
-                      id="price"
-                      type="number"
-                      value={newEvent.price}
-                      onChange={(e) => setNewEvent({ ...newEvent, price: e.target.value })}
-                      placeholder="Price per person"
-                    />
-                  </div>
-                  <div>
-                    <Label htmlFor="includes">Includes (comma-separated)</Label>
-                    <Textarea
-                      id="includes"
-                      value={newEvent.includes}
-                      onChange={(e) => setNewEvent({ ...newEvent, includes: e.target.value })}
-                      placeholder="Item 1, Item 2, Item 3..."
-                    />
-                  </div>
-                  <div>
-                    <Label htmlFor="minGuests">Minimum Guests</Label>
-                    <Input
-                      id="minGuests"
-                      type="number"
-                      value={newEvent.minGuests}
-                      onChange={(e) => setNewEvent({ ...newEvent, minGuests: e.target.value })}
-                      placeholder="Minimum number of guests"
-                    />
-                  </div>
-                  <div>
-                    <Label htmlFor="eventType">Event Type</Label>
-                    <Input
-                      id="eventType"
-                      value={newEvent.eventType}
-                      onChange={(e) => setNewEvent({ ...newEvent, eventType: e.target.value })}
-                      placeholder="e.g., Culinary Experience, Entertainment"
-                    />
-                  </div>
-                </>
-              )}
 
-              <Button onClick={addEvent} className="w-full">
-                Add Event
-              </Button>
-            </div>
-          </DialogContent>
-        </Dialog>
       </div>
 
       {/* Controls */}
