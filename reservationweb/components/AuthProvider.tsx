@@ -1,7 +1,7 @@
 "use client"
+import { auth } from '@/lib/firebase';
 import React, { createContext, useContext, useEffect, useState } from "react";
-import { onAuthStateChanged, User } from "firebase/auth";
-import { auth } from "@/lib/firebase";
+import { onAuthStateChanged, User, } from "firebase/auth";
 import { useRouter, usePathname } from "next/navigation";
 
 const AuthContext = createContext<{ user: User | null; loading: boolean }>({ user: null, loading: true });
