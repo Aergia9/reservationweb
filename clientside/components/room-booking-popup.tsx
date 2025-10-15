@@ -802,12 +802,13 @@ export default function EventBookingPopup({ selectedEvent, isOpen, onClose, onSu
                     </div>
                   </div>
                   <div className="flex flex-col sm:flex-row gap-4 mt-auto">
-                    <Button type="button" variant="outline" onClick={onClose} className="flex-1 bg-transparent">
+                    <Button type="button" variant="outline" onClick={onClose} className="flex-1 bg-transparent border-gray-300 hover:bg-gray-50 hover:text-gray-900">
                       Cancel
                     </Button>
                     <Button 
                       type="submit" 
-                      className="flex-1 bg-primary hover:bg-primary/90"
+                      variant="outline"
+                      className="flex-1 bg-transparent border-gray-300 hover:bg-gray-50 text-red-600 hover:text-red-700"
                       disabled={loading}
                     >
                       {getBookingButtonText()}

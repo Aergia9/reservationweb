@@ -13,6 +13,7 @@ import { ref, uploadBytes, getDownloadURL } from 'firebase/storage'
 import { db, storage } from "@/lib/firebase"
 import { SpecialEvent } from "@/lib/types"
 import { toast } from "sonner"
+import PaymentInfoPopup from "./payment-info-popup"
 
 // Image Slider Component
 interface ImageSliderProps {
@@ -247,12 +248,16 @@ export default function EventBookingPopup({ selectedEvent, isOpen, onClose, onSu
     lastName: '',
     email: '',
     phone: '',
-    paymentImage: null as File | null,
     selectedPackage: '' // Add package selection
   })
   const [loading, setLoading] = useState(false)
-  const [paymentImagePreview, setPaymentImagePreview] = useState<string | null>(null)
   const [error, setError] = useState('')
+  const [showPaymentPopup, setShowPaymentPopup] = useState(false)
+  const [bookingDetails, setBookingDetails] = useState<{
+    bookingId: string
+    eventName: string
+    totalAmount: number
+  } | null>(null)
 
   // Helper function to get selected package details
   const getSelectedPackage = () => {
@@ -304,12 +309,12 @@ export default function EventBookingPopup({ selectedEvent, isOpen, onClose, onSu
     if (selectedEvent) {
       const selectedPkg = getSelectedPackage();
       if (selectedPkg) {
-        return `Book Event - ${selectedPkg.name} - Rp${selectedPkg.price.toLocaleString()}`;
+        return `Pay Now - ${selectedPkg.name} - Rp${selectedPkg.price.toLocaleString()}`;
       }
-      return `Book Event - Rp${selectedEvent.price.toLocaleString()}/person`;
+      return `Pay Now - Rp${selectedEvent.price.toLocaleString()}/person`;
     }
     
-    return 'Book';
+    return 'Pay Now';
   };
 
   // Reset form when dialog opens/closes
@@ -324,11 +329,11 @@ export default function EventBookingPopup({ selectedEvent, isOpen, onClose, onSu
         lastName: '',
         email: '',
         phone: '',
-        paymentImage: null,
         selectedPackage: ''
       })
-      setPaymentImagePreview(null)
       setError('')
+      setShowPaymentPopup(false) // Also reset payment popup state
+      setBookingDetails(null) // Reset booking details
     }
   }, [isOpen])
 
@@ -411,130 +416,43 @@ export default function EventBookingPopup({ selectedEvent, isOpen, onClose, onSu
     }))
   }
 
-  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0]
-    if (file) {
-      // Validate file type
-      if (!file.type.startsWith('image/')) {
-        toast.error('Please select a valid image file')
-        return
-      }
-      // Validate file size (max 5MB)
-      if (file.size > 5 * 1024 * 1024) {
-        toast.error('Image must be smaller than 5MB')
-        return
-      }
-      
-      setFormData(prev => ({
-        ...prev,
-        paymentImage: file
-      }))
-      
-      // Create preview
-      const reader = new FileReader()
-      reader.onload = (e) => {
-        setPaymentImagePreview(e.target?.result as string)
-      }
-      reader.readAsDataURL(file)
-    }
-  }
+
 
   const handleBookingSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     
-    // Validate payment image is required
-    if (!formData.paymentImage) {
-      setError('Please upload payment proof image to complete your booking')
+    // Validate required fields before opening payment popup
+    if (!formData.firstName || !formData.lastName || !formData.email || !formData.phone) {
+      setError('Please fill in all required fields')
       return
     }
     
-    // Validate package selection for events with packages
-    if (selectedEvent?.hasPackages && selectedEvent.packages && selectedEvent.packages.length > 0 && !formData.selectedPackage) {
-      setError('Please select a package for this event')
+    if (!formData.bookingDate) {
+      setError('Please select a booking date')
       return
-    }
-    
-    // Validate date range for events
-    if (selectedEvent && selectedEvent.startDate && selectedEvent.endDate) {
-      const dateValidation = validateBookingDate(formData.bookingDate, selectedEvent.startDate, selectedEvent.endDate)
-      if (!dateValidation.isValid) {
-        setError(dateValidation.message)
-        return
-      }
     }
 
     setLoading(true)
     setError('')
 
     try {
-      let paymentImageUrl = ''
+      // Set event details for payment popup (will include form data)
+      setBookingDetails({
+        bookingId: 'TBD', // Will be generated after payment proof upload
+        eventName: selectedEvent?.name || 'Event',
+        totalAmount: calculateTotalPrice() // Calculate based on current form data
+      })
       
-      // Upload payment image to Firebase Storage
-      if (formData.paymentImage) {
-        const timestamp = Date.now()
-        const fileName = `payment_${timestamp}_${formData.paymentImage.name}`
-        const storageRef = ref(storage, `payment-proofs/${fileName}`)
-        
-        const snapshot = await uploadBytes(storageRef, formData.paymentImage)
-        paymentImageUrl = await getDownloadURL(snapshot.ref)
-      }
+      // Show payment popup WITHOUT closing booking dialog first
+      // This prevents formData from being reset
+      setShowPaymentPopup(true)
+      
+      toast.success('Redirecting to payment...')
 
-      // Generate booking ID
-      const eventName = selectedEvent?.name || 'booking';
-      // Get existing bookings count for this event to generate order number
-      const bookingsQuery = query(
-        collection(db, 'booking'),
-        where('eventName', '==', eventName)
-      );
-      const existingBookings = await getDocs(bookingsQuery);
-      const orderNumber = existingBookings.docs.length + 1;
-      const bookingId = generateBookingId(eventName, orderNumber);
-
-      // Prepare booking data
-      const selectedPkg = getSelectedPackage();
-      const totalGuests = (parseInt(formData.adults) || 0) + (parseInt(formData.children) || 0);
-      const bookingData = {
-        bookingId: bookingId,
-        bookingDate: formData.bookingDate,
-        bookingTime: formData.bookingTime,
-        adults: parseInt(formData.adults) || 0,
-        children: parseInt(formData.children) || 0,
-        totalGuests: totalGuests,
-        firstName: formData.firstName,
-        lastName: formData.lastName,
-        email: formData.email,
-        phone: formData.phone,
-        paymentImageUrl,
-        bookingType: 'event',
-        eventId: selectedEvent?.id || null,
-        eventName: selectedEvent?.name || null,
-        // Package information
-        hasPackage: Boolean(selectedPkg),
-        packageId: selectedPkg?.id || null,
-        packageName: selectedPkg?.name || null,
-        packagePrice: selectedPkg?.price || null,
-        packagePeopleCount: selectedPkg?.peopleCount || null,
-        totalPrice: calculateTotalPrice(),
-        status: 'pending',
-        paymentStatus: 'pending', // New field for payment review
-        createdAt: Timestamp.now(),
-        updatedAt: Timestamp.now()
-      }
-
-      // Save to Firestore
-      await addDoc(collection(db, 'booking'), bookingData)
-      
-      // Call original onSubmit for any additional logic
-      onSubmit(e)
-      
-      // Success - close modal
-      onClose()
-      
-      toast.success('Booking submitted successfully! Payment proof uploaded. We will review and contact you soon.')
       
     } catch (error) {
-      console.error('Error saving booking:', error)
-      setError('Failed to submit booking. Please try again.')
+      console.error('Error opening payment popup:', error)
+      setError('Failed to proceed to payment. Please try again.')
     } finally {
       setLoading(false)
     }
@@ -825,43 +743,15 @@ export default function EventBookingPopup({ selectedEvent, isOpen, onClose, onSu
                         className="bg-white border-gray-300 text-gray-800"
                       />
                     </div>
-
-                    {/* Payment Proof Upload */}
-                    <div className="space-y-4 pt-4 border-t">
-                      <h4 className="font-semibold text-lg text-gray-800">Payment Proof</h4>
-                      <p className="text-sm text-gray-700">
-                        Please upload your payment proof to complete the booking. Admin will review and confirm your booking.
-                      </p>
-                      
-                      <div>
-                        <Label htmlFor="paymentImage" className="text-gray-800 font-medium">Upload Payment Receipt *</Label>
-                        <Input 
-                          type="file" 
-                          id="paymentImage" 
-                          accept="image/*"
-                          onChange={handleImageChange}
-                          required 
-                          className="mt-1"
-                        />
-                        {paymentImagePreview && (
-                          <div className="mt-3">
-                            <img 
-                              src={paymentImagePreview} 
-                              alt="Payment proof preview" 
-                              className="max-w-full h-48 object-contain border rounded-lg"
-                            />
-                          </div>
-                        )}
-                      </div>
-                    </div>
                   </div>
                   <div className="flex flex-col sm:flex-row gap-4 mt-auto">
-                    <Button type="button" variant="outline" onClick={onClose} className="flex-1 bg-transparent">
+                    <Button type="button" variant="outline" onClick={onClose} className="flex-1 bg-transparent border-gray-300 hover:bg-gray-50 hover:text-gray-900">
                       Cancel
                     </Button>
                     <Button 
                       type="submit" 
-                      className="flex-1 bg-primary hover:bg-primary/90"
+                      variant="outline"
+                      className="flex-1 bg-transparent border-gray-300 hover:bg-gray-50 text-red-600 hover:text-red-700"
                       disabled={loading}
                     >
                       {getBookingButtonText()}
@@ -873,6 +763,28 @@ export default function EventBookingPopup({ selectedEvent, isOpen, onClose, onSu
           )}
         </div>
       </DialogContent>
+      
+      {/* Payment Info Popup */}
+      <PaymentInfoPopup
+        isOpen={showPaymentPopup}
+        onClose={() => {
+          setShowPaymentPopup(false)
+          // Don't close the booking dialog - let user continue filling the form
+        }}
+        bookingDetails={bookingDetails || undefined}
+        selectedEvent={selectedEvent}
+        formData={formData}
+        onBookingComplete={(bookingData) => {
+          // Close both payment popup and booking dialog after successful completion
+          setShowPaymentPopup(false)
+          onClose() // Close the booking dialog after payment is complete
+          if (onSubmit) {
+            // Create a dummy form event for the callback
+            const dummyEvent = new Event('submit') as any
+            onSubmit(dummyEvent)
+          }
+        }}
+      />
     </Dialog>
   )
 }

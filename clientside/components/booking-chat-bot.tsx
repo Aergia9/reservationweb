@@ -119,7 +119,14 @@ export default function BookingChatBot({ isOpen, onClose }: BookingChatBotProps)
       dateNotInEventPeriod: "❌ The date {date} is not within the event period. The event \"{eventName}\" runs from {startDate} to {endDate}. Please choose a date within this range.\n\nPlease enter a valid date (DD-MM-YYYY format):",
       invalidDateFormat: "❌ Please enter a valid date in DD-MM-YYYY format (e.g., 25-12-2025):",
       dateTooFarFuture: "❌ The date {date} is too far in the future. Please choose a date within the next 2 years.\n\nPlease enter a valid date (DD-MM-YYYY format):",
-      eventInfoNotFound: "⚠️ Could not verify event date range, but the date {date} appears valid. Proceeding with basic validation."
+      eventInfoNotFound: "⚠️ Could not verify event date range, but the date {date} appears valid. Proceeding with basic validation.",
+      currentDateAndEnterNew: "📅 Current date: {currentDate}\n\nPlease enter the new date (DD-MM-YYYY format, e.g., 25-12-2025):",
+      currentDateTimeEnterDate: "📅 Current date: {currentDate}\n⏰ Current time: {currentTime}\n\nLet's start with the date. Please enter the new date (DD-MM-YYYY format, e.g., 25-12-2025):",
+      invalidChoice: "Please enter 1 for Date, 2 for Time, 3 for Both, or 4 for Cancel.",
+      currentDateWithEventRange: "📅 **Current date:** {currentDate}\n\n📅 **Event \"{eventName}\" is available from:**\n🗓️ {startDate} to {endDate}\n\nPlease enter the new date within this range (DD-MM-YYYY format, e.g., 25-12-2025):",
+      currentDateWithTimeAndEventRange: "📅 **Current date:** {currentDate}\n⏰ **Current time:** {currentTime}\n\n📅 **Event \"{eventName}\" is available from:**\n🗓️ {startDate} to {endDate}\n\nLet's start with the date. Please enter the new date within this range (DD-MM-YYYY format, e.g., 25-12-2025):",
+      currentTimeEnterNew: "⏰ Current time: {currentTime}\n\nPlease enter the new time (HH:MM format, e.g., 14:30):",
+      notSpecified: "Not specified"
     },
     id: {
       languageSelection: "Selamat datang di Asisten Booking Claro! 🎉\n\nSilakan pilih bahasa yang Anda inginkan:\n1️⃣ English\n2️⃣ Bahasa Indonesia",
@@ -159,7 +166,14 @@ export default function BookingChatBot({ isOpen, onClose }: BookingChatBotProps)
       dateNotInEventPeriod: "❌ Tanggal {date} tidak dalam periode event. Event \"{eventName}\" berlangsung dari {startDate} sampai {endDate}. Silakan pilih tanggal dalam rentang ini.\n\nSilakan masukkan tanggal yang valid (format DD-MM-YYYY):",
       invalidDateFormat: "❌ Silakan masukkan tanggal yang valid dalam format DD-MM-YYYY (contoh: 25-12-2025):",
       dateTooFarFuture: "❌ Tanggal {date} terlalu jauh di masa depan. Silakan pilih tanggal dalam 2 tahun ke depan.\n\nSilakan masukkan tanggal yang valid (format DD-MM-YYYY):",
-      eventInfoNotFound: "⚠️ Tidak dapat memverifikasi rentang tanggal event, tetapi tanggal {date} tampak valid. Melanjutkan dengan validasi dasar."
+      eventInfoNotFound: "⚠️ Tidak dapat memverifikasi rentang tanggal event, tetapi tanggal {date} tampak valid. Melanjutkan dengan validasi dasar.",
+      currentDateAndEnterNew: "📅 Tanggal saat ini: {currentDate}\n\nSilakan masukkan tanggal baru (format DD-MM-YYYY, contoh: 25-12-2025):",
+      currentDateTimeEnterDate: "📅 Tanggal saat ini: {currentDate}\n⏰ Waktu saat ini: {currentTime}\n\nMari mulai dengan tanggal. Silakan masukkan tanggal baru (format DD-MM-YYYY, contoh: 25-12-2025):",
+      invalidChoice: "Silakan masukkan 1 untuk Tanggal, 2 untuk Waktu, 3 untuk Keduanya, atau 4 untuk Batal.",
+      currentDateWithEventRange: "📅 **Tanggal saat ini:** {currentDate}\n\n📅 **Event \"{eventName}\" tersedia dari:**\n🗓️ {startDate} sampai {endDate}\n\nSilakan masukkan tanggal baru dalam rentang ini (format DD-MM-YYYY, contoh: 25-12-2025):",
+      currentDateWithTimeAndEventRange: "📅 **Tanggal saat ini:** {currentDate}\n⏰ **Waktu saat ini:** {currentTime}\n\n📅 **Event \"{eventName}\" tersedia dari:**\n🗓️ {startDate} sampai {endDate}\n\nMari mulai dengan tanggal. Silakan masukkan tanggal baru dalam rentang ini (format DD-MM-YYYY, contoh: 25-12-2025):",
+      currentTimeEnterNew: "⏰ Waktu saat ini: {currentTime}\n\nSilakan masukkan waktu baru (format HH:MM, contoh: 14:30):",
+      notSpecified: "Tidak ditentukan"
     }
   }
 
@@ -618,52 +632,64 @@ export default function BookingChatBot({ isOpen, onClose }: BookingChatBotProps)
         if (trimmedInput === '1') {
           // Fetch event info first to show date range
           if (bookingInfo?.eventName) {
-            addBotMessage("🔍 Fetching event information...")
+            addBotMessage(t('fetchingEvent'))
             console.log('Booking eventName for edit option 1:', bookingInfo.eventName)
             const eventInfo = await getEventInfoByName(bookingInfo.eventName)
             
             if (eventInfo) {
               const eventStartDisplay = formatDateForDisplay(eventInfo.startDate)
               const eventEndDisplay = formatDateForDisplay(eventInfo.endDate)
-              addBotMessage(`📅 **Current date:** ${formatDateForDisplay(bookingInfo?.bookingDate || '')}
-
-📅 **Event "${eventInfo.name}" is available from:**
-🗓️ ${eventStartDisplay} to ${eventEndDisplay}
-
-Please enter the new date within this range (DD-MM-YYYY format, e.g., 25-12-2025):`)
+              addBotMessage(t('currentDateWithEventRange', {
+                currentDate: formatDateForDisplay(bookingInfo?.bookingDate || ''),
+                eventName: eventInfo.name,
+                startDate: eventStartDisplay,
+                endDate: eventEndDisplay
+              }))
             } else {
-              addBotMessage(`📅 Current date: ${formatDateForDisplay(bookingInfo?.bookingDate || '')}\n\nPlease enter the new date (DD-MM-YYYY format, e.g., 25-12-2025):`)
+              addBotMessage(t('currentDateAndEnterNew', {
+                currentDate: formatDateForDisplay(bookingInfo?.bookingDate || '')
+              }))
             }
           } else {
-            addBotMessage(`📅 Current date: ${formatDateForDisplay(bookingInfo?.bookingDate || '')}\n\nPlease enter the new date (DD-MM-YYYY format, e.g., 25-12-2025):`)
+            addBotMessage(t('currentDateAndEnterNew', {
+              currentDate: formatDateForDisplay(bookingInfo?.bookingDate || '')
+            }))
           }
           setEditingField('date')
           setCurrentStep('edit_date')
         } else if (trimmedInput === '2') {
-          addBotMessage(`⏰ Current time: ${bookingInfo?.bookingTime || 'Not specified'}\n\nPlease enter the new time (HH:MM format, e.g., 14:30):`)
+          addBotMessage(t('currentTimeEnterNew', {
+            currentTime: bookingInfo?.bookingTime || t('notSpecified')
+          }))
           setEditingField('time')
           setCurrentStep('edit_time')
         } else if (trimmedInput === '3') {
           // Fetch event info first to show date range
           if (bookingInfo?.eventName) {
-            addBotMessage("🔍 Fetching event information...")
+            addBotMessage(t('fetchingEvent'))
             const eventInfo = await getEventInfoByName(bookingInfo.eventName)
             
             if (eventInfo) {
               const eventStartDisplay = formatDateForDisplay(eventInfo.startDate)
               const eventEndDisplay = formatDateForDisplay(eventInfo.endDate)
-              addBotMessage(`📅 **Current date:** ${formatDateForDisplay(bookingInfo?.bookingDate || '')}
-⏰ **Current time:** ${bookingInfo?.bookingTime || 'Not specified'}
-
-📅 **Event "${eventInfo.name}" is available from:**
-🗓️ ${eventStartDisplay} to ${eventEndDisplay}
-
-Let's start with the date. Please enter the new date within this range (DD-MM-YYYY format, e.g., 25-12-2025):`)
+              addBotMessage(t('currentDateWithTimeAndEventRange', {
+                currentDate: formatDateForDisplay(bookingInfo?.bookingDate || ''),
+                currentTime: bookingInfo?.bookingTime || t('notSpecified'),
+                eventName: eventInfo.name,
+                startDate: eventStartDisplay,
+                endDate: eventEndDisplay
+              }))
             } else {
-              addBotMessage(`📅 Current date: ${formatDateForDisplay(bookingInfo?.bookingDate || '')}\n⏰ Current time: ${bookingInfo?.bookingTime || 'Not specified'}\n\nLet's start with the date. Please enter the new date (DD-MM-YYYY format, e.g., 25-12-2025):`)
+              addBotMessage(t('currentDateTimeEnterDate', {
+                currentDate: formatDateForDisplay(bookingInfo?.bookingDate || ''),
+                currentTime: bookingInfo?.bookingTime || t('notSpecified')
+              }))
             }
           } else {
-            addBotMessage(`📅 Current date: ${formatDateForDisplay(bookingInfo?.bookingDate || '')}\n⏰ Current time: ${bookingInfo?.bookingTime || 'Not specified'}\n\nLet's start with the date. Please enter the new date (DD-MM-YYYY format, e.g., 25-12-2025):`)
+            addBotMessage(t('currentDateTimeEnterDate', {
+              currentDate: formatDateForDisplay(bookingInfo?.bookingDate || ''),
+              currentTime: bookingInfo?.bookingTime || t('notSpecified')
+            }))
           }
           setEditingField('date')
           setCurrentStep('edit_date')
@@ -671,7 +697,7 @@ Let's start with the date. Please enter the new date within this range (DD-MM-YY
           addBotMessage("No changes made. Have a great day! 👋")
           setCurrentStep('completed')
         } else {
-          addBotMessage("Please enter 1 for Date, 2 for Time, 3 for Both, or 4 for Cancel.")
+          addBotMessage(t('invalidChoice'))
         }
         break
 
