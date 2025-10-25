@@ -17,6 +17,7 @@ import { ArrowUpDown, ChevronDown, MoreHorizontal, Eye, Check, X, Download, Tras
 
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
+import { emailService } from "@/lib/emailService"
 import {
   Dialog,
   DialogContent,
@@ -139,12 +140,32 @@ export function DataTable({ data, onStatusUpdate, onPaymentStatusUpdate, onDelet
     setPaymentDialogOpen(true)
   }
 
-  const handlePaymentApproval = (bookingId: string, approved: boolean) => {
+  const handlePaymentApproval = async (bookingId: string, approved: boolean) => {
     const newPaymentStatus = approved ? "approved" : "rejected"
     const newBookingStatus = approved ? "confirmed" : "cancelled"
     
     onPaymentStatusUpdate?.(bookingId, newPaymentStatus)
     onStatusUpdate(bookingId, newBookingStatus)
+    
+    // Send payment confirmation email if approved
+    if (approved) {
+      try {
+        // Find the booking data to get customer details
+        const booking = data.find(b => b.id === bookingId)
+        if (booking && booking.email) {
+          await emailService.sendPaymentConfirmation({
+            bookingId: booking.bookingId || bookingId,
+            eventName: booking.eventName || 'Event',
+            customerName: `${booking.firstName} ${booking.lastName}`,
+            email: booking.email
+          })
+          console.log('Payment confirmation email sent successfully')
+        }
+      } catch (emailError) {
+        console.error('Error sending payment confirmation email:', emailError)
+        // Don't break the approval flow if email fails
+      }
+    }
     
     toast.success(`Payment ${approved ? "approved" : "rejected"} and booking ${approved ? "confirmed" : "cancelled"}`)
     setPaymentDialogOpen(false)

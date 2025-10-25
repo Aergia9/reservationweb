@@ -12,6 +12,7 @@ import { Timestamp, collection, addDoc, getDocs, query, where } from 'firebase/f
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage'
 import { db, storage } from "@/lib/firebase"
 import { SpecialEvent } from "@/lib/types"
+import { emailService } from "@/lib/emailService"
 import { toast } from "sonner"
 
 // Image Slider Component
@@ -469,6 +470,24 @@ export default function EventBookingPopup({ selectedEvent, isOpen, onClose, onSu
 
       // Save to Firestore
       await addDoc(collection(db, 'booking'), bookingData)
+      
+      // Send booking confirmation email
+      try {
+        await emailService.sendBookingConfirmation({
+          bookingId: bookingId,
+          eventName: selectedEvent?.name || 'Room Booking',
+          customerName: `${formData.firstName} ${formData.lastName}`,
+          bookingDate: formData.bookingDate,
+          bookingTime: formData.bookingTime,
+          totalGuests: (parseInt(formData.adults) || 0) + (parseInt(formData.children) || 0),
+          totalPrice: calculateTotalPrice(),
+          email: formData.email
+        })
+        console.log('Room booking confirmation email sent successfully')
+      } catch (emailError) {
+        console.error('Error sending room booking confirmation email:', emailError)
+        // Don't break the booking flow if email fails
+      }
       
       // Call original onSubmit for any additional logic
       onSubmit(e)

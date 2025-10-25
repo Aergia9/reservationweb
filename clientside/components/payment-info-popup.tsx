@@ -12,6 +12,7 @@ import { toast } from "sonner"
 import { Timestamp, collection, addDoc, getDocs, query, where } from 'firebase/firestore'
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage'
 import { db, storage } from "@/lib/firebase"
+import { emailService } from "@/lib/emailService"
 import BookingConfirmationPopup from "./booking-confirmation-popup"
 
 interface PaymentInfoPopupProps {
@@ -170,6 +171,24 @@ export default function PaymentInfoPopup({ isOpen, onClose, bookingDetails, sele
 
       // Save to Firestore
       await addDoc(collection(db, 'booking'), bookingData)
+      
+      // Send booking confirmation email
+      try {
+        await emailService.sendBookingConfirmation({
+          bookingId: bookingId,
+          eventName: selectedEvent?.name || 'Event',
+          customerName: `${formData.firstName} ${formData.lastName}`,
+          bookingDate: formData.bookingDate,
+          bookingTime: formData.bookingTime,
+          totalGuests: totalGuests,
+          totalPrice: calculateTotalPrice(),
+          email: formData.email
+        })
+        console.log('Booking confirmation email sent successfully')
+      } catch (emailError) {
+        console.error('Error sending booking confirmation email:', emailError)
+        // Don't break the booking flow if email fails
+      }
       
       // Store booking ID and show confirmation popup
       setCompletedBookingId(bookingId)
