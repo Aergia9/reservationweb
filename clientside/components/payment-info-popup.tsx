@@ -128,15 +128,31 @@ export default function PaymentInfoPopup({ isOpen, onClose, bookingDetails, sele
         paymentImageUrl = await getDownloadURL(snapshot.ref)
       }
 
-      // Generate booking ID
+      // Generate unique booking ID using timestamp
       const eventName = selectedEvent?.name || 'booking'
-      const bookingsQuery = query(
-        collection(db, 'booking'),
-        where('eventName', '==', eventName)
-      )
-      const existingBookings = await getDocs(bookingsQuery)
-      const orderNumber = existingBookings.docs.length + 1
-      const bookingId = generateBookingId(eventName, orderNumber)
+      const timestamp = Date.now()
+      const randomSuffix = Math.random().toString(36).substr(2, 3).toUpperCase()
+      
+      // Create a more unique booking ID
+      let bookingId: string
+      if (!eventName || eventName === 'booking') {
+        bookingId = `BK${String(timestamp).slice(-6)}`
+      } else {
+        const words = eventName.trim().split(/\s+/)
+        let abbreviation = ''
+        
+        if (words.length === 1) {
+          abbreviation = words[0].substring(0, 3).toUpperCase()
+        } else if (words.length === 2) {
+          abbreviation = (words[0].substring(0, 2) + words[1].substring(0, 1)).toUpperCase()
+        } else {
+          abbreviation = (words[0].substring(0, 1) + words[1].substring(0, 1) + words[2].substring(0, 1)).toUpperCase()
+        }
+        
+        // Use timestamp last 3 digits + random suffix for uniqueness
+        const uniqueNumber = String(timestamp).slice(-3) + randomSuffix.slice(0, 1)
+        bookingId = `${abbreviation}${uniqueNumber}`
+      }
 
       // Prepare booking data using formData from the original form
       const selectedPkg = selectedEvent?.packages?.find((pkg: any) => pkg.id === formData.selectedPackage)

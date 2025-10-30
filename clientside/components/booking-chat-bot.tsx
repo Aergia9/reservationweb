@@ -82,97 +82,97 @@ export default function BookingChatBot({ isOpen, onClose }: BookingChatBotProps)
   // Translations object
   const translations = {
     en: {
-      languageSelection: "Welcome to Claro Booking Assistant! 🎉\n\nPlease select your preferred language:\n1️⃣ English\n2️⃣ Bahasa Indonesia",
-      greeting: "Hello! I'm your booking assistant. I can help you edit your existing booking details like date and time.\n\nPlease enter your booking ID:",
+      languageSelection: "Welcome to Claro Booking Assistant!\n\nPlease select your preferred language:\n1️⃣ English\n2️⃣ Bahasa Indonesia",
+      greeting: "Good day. I am your booking assistant. I can help you modify your existing booking details such as date and time.\n\nPlease enter your booking ID:",
       askBookingId: "Please enter your booking ID:",
-      searchingBooking: "🔍 Searching for your booking...",
-      bookingFound: "✅ Found your booking! Here are the details:\n\n📋 **Booking Information**\n🎫 Booking ID: {bookingId}\n👤 Name: {firstName} {lastName}\n🎉 Event: {eventName}\n📅 Date: {date}\n⏰ Time: {time}\n👥 Guests: {adults} Adults, {children} Children\n📊 Status: {status}\n\nPlease choose an option:\n1️⃣ Continue - Proceed to edit this booking\n2️⃣ Back - Start over with a different booking ID\n\nType 1 or 2:",
-      bookingNotFound: "❌ Sorry, I couldn't find a booking with that ID. Please check your booking ID and try again. Make sure to enter the 6-digit booking ID (like BUP001).",
+      searchingBooking: "Searching for your booking...",
+      bookingFound: "Booking found. Here are the details:\n\n**Booking Information**\nBooking ID: {bookingId}\nName: {firstName} {lastName}\nEvent: {eventName}\nDate: {date}\nTime: {time}\nGuests: {adults} Adults, {children} Children\nStatus: {status}\n\nPlease choose an option:\n1️⃣ Continue - Proceed to edit this booking\n2️⃣ Back - Start over with a different booking ID\n\nType 1 or 2:",
+      bookingNotFound: "Sorry, I could not find a booking with that ID. Please check your booking ID and try again. Make sure to enter the 6-digit booking ID (like BUP001).",
       invalidBookingId: "Please enter a valid 6-digit booking ID (letters and numbers only, like BUP001).",
-      securityVerification: "🔐 For security purposes, I need to verify your identity. Please provide:",
-      emailReceived: "📧 Email received. Now please enter your phone number:",
+      securityVerification: "For security purposes, I need to verify your identity. Please provide:",
+      emailReceived: "Email received. Now please enter your phone number:",
       invalidEmail: "Please enter a valid email address.",
-      verificationSuccess: "✅ Verification successful! You can now edit your booking.",
+      verificationSuccess: "Verification successful. You can now edit your booking.",
       editOptionsMessage: "What would you like to change?\n1️⃣ Date - Change booking date\n2️⃣ Time - Change booking time\n3️⃣ Both - Change both date and time\n4️⃣ Cancel - Exit without changes\n\nType 1, 2, 3, or 4:",
       askEmail: "To proceed with editing your booking, I need to verify your identity.\n\nPlease enter your email address:",
       askPhone: "Please enter your phone number:",
-      verificationFailed: "❌ The email or phone number doesn't match our records. Please make sure you entered the correct information. Let's try again.\n\nPlease enter your email address:",
+      verificationFailed: "The email or phone number does not match our records. Please make sure you entered the correct information. Let's try again.\n\nPlease enter your email address:",
       editOptions: "What would you like to edit?\n\n1️⃣ Date - Change booking date\n2️⃣ Time - Change booking time\n3️⃣ Both - Change both date and time\n4️⃣ Cancel - Exit without changes\n\nType 1, 2, 3, or 4:",
-      currentDate: "📅 **Current date:**",
-      currentTime: "⏰ **Current time:**",
-      eventAvailable: "📅 **Event \"{eventName}\" is available from:**",
+      currentDate: "**Current date:**",
+      currentTime: "**Current time:**",
+      eventAvailable: "**Event \"{eventName}\" is available from:**",
       enterNewDate: "Please enter the new date within this range (DD-MM-YYYY format, e.g., 25-12-2025):",
       enterNewTime: "Please enter the new time (HH:MM format, e.g., 14:30):",
-      invalidDate: "❌ Please enter a valid date in DD-MM-YYYY format (e.g., 25-12-2025):",
-      invalidTime: "❌ Please enter a valid time in HH:MM format (e.g., 14:30):",
-      fetchingEvent: "🔍 Fetching event information...",
-      validatingDate: "🔍 Validating date...",
-      newDateSet: "📅 New date set:",
-      newTimeSet: "⏰ New time set:",
+      invalidDate: "Please enter a valid date in DD-MM-YYYY format (e.g., 25-12-2025):",
+      invalidTime: "Please enter a valid time in HH:MM format (e.g., 14:30):",
+      fetchingEvent: "Fetching event information...",
+      validatingDate: "Validating date...",
+      newDateSet: "New date set:",
+      newTimeSet: "New time set:",
       continueEditing: "Would you like to change anything else?\n1️⃣ Change time as well\n2️⃣ Confirm this change only\n3️⃣ Cancel changes\n\nType 1, 2, or 3:",
-      confirmChanges: "Please confirm your changes:\n\n📅 New date: {date}\n⏰ New time: {time}\n\n1️⃣ Confirm changes\n2️⃣ Make more changes\n3️⃣ Cancel\n\nType 1, 2, or 3:",
-      updatingBooking: "✅ Updating your booking...",
-      bookingUpdated: "🎉 Great! Your booking has been successfully updated.",
-      noChanges: "No changes made. Have a great day! 👋",
+      confirmChanges: "Please confirm your changes:\n\nNew date: {date}\nNew time: {time}\n\n1️⃣ Confirm changes\n2️⃣ Make more changes\n3️⃣ Cancel\n\nType 1, 2, or 3:",
+      updatingBooking: "Updating your booking...",
+      bookingUpdated: "Your booking has been successfully updated.",
+      noChanges: "No changes made. Have a great day.",
       completed: "Is there anything else I can help you with?\n\n1️⃣ Edit another booking\n2️⃣ Exit\n\nType 1 or 2:",
-      dateAlreadyPassed: "❌ The date {date} has already passed. Please choose a future date.\n\nPlease enter a valid date (DD-MM-YYYY format):",
-      dateNotInEventPeriod: "❌ The date {date} is not within the event period. The event \"{eventName}\" runs from {startDate} to {endDate}. Please choose a date within this range.\n\nPlease enter a valid date (DD-MM-YYYY format):",
-      invalidDateFormat: "❌ Please enter a valid date in DD-MM-YYYY format (e.g., 25-12-2025):",
-      dateTooFarFuture: "❌ The date {date} is too far in the future. Please choose a date within the next 2 years.\n\nPlease enter a valid date (DD-MM-YYYY format):",
-      eventInfoNotFound: "⚠️ Could not verify event date range, but the date {date} appears valid. Proceeding with basic validation.",
-      currentDateAndEnterNew: "📅 Current date: {currentDate}\n\nPlease enter the new date (DD-MM-YYYY format, e.g., 25-12-2025):",
-      currentDateTimeEnterDate: "📅 Current date: {currentDate}\n⏰ Current time: {currentTime}\n\nLet's start with the date. Please enter the new date (DD-MM-YYYY format, e.g., 25-12-2025):",
+      dateAlreadyPassed: "The date {date} has already passed. Please choose a future date.\n\nPlease enter a valid date (DD-MM-YYYY format):",
+      dateNotInEventPeriod: "The date {date} is not within the event period. The event \"{eventName}\" runs from {startDate} to {endDate}. Please choose a date within this range.\n\nPlease enter a valid date (DD-MM-YYYY format):",
+      invalidDateFormat: "Please enter a valid date in DD-MM-YYYY format (e.g., 25-12-2025):",
+      dateTooFarFuture: "The date {date} is too far in the future. Please choose a date within the next 2 years.\n\nPlease enter a valid date (DD-MM-YYYY format):",
+      eventInfoNotFound: "Could not verify event date range, but the date {date} appears valid. Proceeding with basic validation.",
+      currentDateAndEnterNew: "Current date: {currentDate}\n\nPlease enter the new date (DD-MM-YYYY format, e.g., 25-12-2025):",
+      currentDateTimeEnterDate: "Current date: {currentDate}\nCurrent time: {currentTime}\n\nLet's start with the date. Please enter the new date (DD-MM-YYYY format, e.g., 25-12-2025):",
       invalidChoice: "Please enter 1 for Date, 2 for Time, 3 for Both, or 4 for Cancel.",
-      currentDateWithEventRange: "📅 **Current date:** {currentDate}\n\n📅 **Event \"{eventName}\" is available from:**\n🗓️ {startDate} to {endDate}\n\nPlease enter the new date within this range (DD-MM-YYYY format, e.g., 25-12-2025):",
-      currentDateWithTimeAndEventRange: "📅 **Current date:** {currentDate}\n⏰ **Current time:** {currentTime}\n\n📅 **Event \"{eventName}\" is available from:**\n🗓️ {startDate} to {endDate}\n\nLet's start with the date. Please enter the new date within this range (DD-MM-YYYY format, e.g., 25-12-2025):",
-      currentTimeEnterNew: "⏰ Current time: {currentTime}\n\nPlease enter the new time (HH:MM format, e.g., 14:30):",
+      currentDateWithEventRange: "**Current date:** {currentDate}\n\n**Event \"{eventName}\" is available from:**\n{startDate} to {endDate}\n\nPlease enter the new date within this range (DD-MM-YYYY format, e.g., 25-12-2025):",
+      currentDateWithTimeAndEventRange: "**Current date:** {currentDate}\n**Current time:** {currentTime}\n\n**Event \"{eventName}\" is available from:**\n{startDate} to {endDate}\n\nLet's start with the date. Please enter the new date within this range (DD-MM-YYYY format, e.g., 25-12-2025):",
+      currentTimeEnterNew: "Current time: {currentTime}\n\nPlease enter the new time (HH:MM format, e.g., 14:30):",
       notSpecified: "Not specified"
     },
     id: {
-      languageSelection: "Selamat datang di Asisten Booking Claro! 🎉\n\nSilakan pilih bahasa yang Anda inginkan:\n1️⃣ English\n2️⃣ Bahasa Indonesia",
-      greeting: "Halo! Saya asisten booking Anda. Saya dapat membantu Anda mengedit detail booking yang sudah ada seperti tanggal dan waktu.\n\nSilakan masukkan ID booking Anda:",
+      languageSelection: "Selamat datang di Asisten Booking Claro!\n\nSilakan pilih bahasa yang Anda inginkan:\n1️⃣ English\n2️⃣ Bahasa Indonesia",
+      greeting: "Selamat datang. Saya adalah asisten booking Anda. Saya dapat membantu Anda mengubah detail booking yang sudah ada seperti tanggal dan waktu.\n\nSilakan masukkan ID booking Anda:",
       askBookingId: "Silakan masukkan ID booking Anda:",
-      searchingBooking: "🔍 Mencari booking Anda...",
-      bookingFound: "✅ Booking Anda ditemukan! Berikut adalah detailnya:\n\n📋 **Informasi Booking**\n🎫 ID Booking: {bookingId}\n👤 Nama: {firstName} {lastName}\n🎉 Event: {eventName}\n📅 Tanggal: {date}\n⏰ Waktu: {time}\n👥 Tamu: {adults} Dewasa, {children} Anak-anak\n📊 Status: {status}\n\nSilakan pilih opsi:\n1️⃣ Lanjutkan - Lanjut untuk mengedit booking ini\n2️⃣ Kembali - Mulai lagi dengan ID booking yang berbeda\n\nKetik 1 atau 2:",
-      bookingNotFound: "❌ Maaf, saya tidak dapat menemukan booking dengan ID tersebut. Silakan periksa ID booking Anda dan coba lagi. Pastikan memasukkan ID booking 6 digit (seperti BUP001).",
+      searchingBooking: "Mencari booking Anda...",
+      bookingFound: "Booking ditemukan. Berikut adalah detailnya:\n\n**Informasi Booking**\nID Booking: {bookingId}\nNama: {firstName} {lastName}\nEvent: {eventName}\nTanggal: {date}\nWaktu: {time}\nTamu: {adults} Dewasa, {children} Anak-anak\nStatus: {status}\n\nSilakan pilih opsi:\n1️⃣ Lanjutkan - Lanjut untuk mengedit booking ini\n2️⃣ Kembali - Mulai lagi dengan ID booking yang berbeda\n\nKetik 1 atau 2:",
+      bookingNotFound: "Maaf, saya tidak dapat menemukan booking dengan ID tersebut. Silakan periksa ID booking Anda dan coba lagi. Pastikan memasukkan ID booking 6 digit (seperti BUP001).",
       invalidBookingId: "Silakan masukkan ID booking 6 digit yang valid (huruf dan angka saja, seperti BUP001).",
-      securityVerification: "🔐 Untuk tujuan keamanan, saya perlu memverifikasi identitas Anda. Silakan berikan:",
-      emailReceived: "📧 Email diterima. Sekarang silakan masukkan nomor telepon Anda:",
+      securityVerification: "Untuk tujuan keamanan, saya perlu memverifikasi identitas Anda. Silakan berikan:",
+      emailReceived: "Email diterima. Sekarang silakan masukkan nomor telepon Anda:",
       invalidEmail: "Silakan masukkan alamat email yang valid.",
-      verificationSuccess: "✅ Verifikasi berhasil! Anda sekarang dapat mengedit booking Anda.",
+      verificationSuccess: "Verifikasi berhasil. Anda sekarang dapat mengedit booking Anda.",
       editOptionsMessage: "Apa yang ingin Anda ubah?\n1️⃣ Tanggal - Ubah tanggal booking\n2️⃣ Waktu - Ubah waktu booking\n3️⃣ Keduanya - Ubah tanggal dan waktu\n4️⃣ Batal - Keluar tanpa perubahan\n\nKetik 1, 2, 3, atau 4:",
       askEmail: "Untuk melanjutkan pengeditan booking Anda, saya perlu memverifikasi identitas Anda.\n\nSilakan masukkan alamat email Anda:",
       askPhone: "Silakan masukkan nomor telepon Anda:",
-      verificationFailed: "❌ Email atau nomor telepon tidak sesuai dengan data kami. Pastikan Anda memasukkan informasi yang benar. Mari coba lagi.\n\nSilakan masukkan alamat email Anda:",
+      verificationFailed: "Email atau nomor telepon tidak sesuai dengan data kami. Pastikan Anda memasukkan informasi yang benar. Mari coba lagi.\n\nSilakan masukkan alamat email Anda:",
       editOptions: "Apa yang ingin Anda edit?\n\n1️⃣ Tanggal - Ubah tanggal booking\n2️⃣ Waktu - Ubah waktu booking\n3️⃣ Keduanya - Ubah tanggal dan waktu\n4️⃣ Batal - Keluar tanpa perubahan\n\nKetik 1, 2, 3, atau 4:",
-      currentDate: "📅 **Tanggal saat ini:**",
-      currentTime: "⏰ **Waktu saat ini:**",
-      eventAvailable: "📅 **Event \"{eventName}\" tersedia dari:**",
+      currentDate: "**Tanggal saat ini:**",
+      currentTime: "**Waktu saat ini:**",
+      eventAvailable: "**Event \"{eventName}\" tersedia dari:**",
       enterNewDate: "Silakan masukkan tanggal baru dalam rentang ini (format DD-MM-YYYY, contoh: 25-12-2025):",
       enterNewTime: "Silakan masukkan waktu baru (format HH:MM, contoh: 14:30):",
-      invalidDate: "❌ Silakan masukkan tanggal yang valid dalam format DD-MM-YYYY (contoh: 25-12-2025):",
-      invalidTime: "❌ Silakan masukkan waktu yang valid dalam format HH:MM (contoh: 14:30):",
-      fetchingEvent: "🔍 Mengambil informasi event...",
-      validatingDate: "🔍 Memvalidasi tanggal...",
-      newDateSet: "📅 Tanggal baru ditetapkan:",
-      newTimeSet: "⏰ Waktu baru ditetapkan:",
+      invalidDate: "Silakan masukkan tanggal yang valid dalam format DD-MM-YYYY (contoh: 25-12-2025):",
+      invalidTime: "Silakan masukkan waktu yang valid dalam format HH:MM (contoh: 14:30):",
+      fetchingEvent: "Mengambil informasi event...",
+      validatingDate: "Memvalidasi tanggal...",
+      newDateSet: "Tanggal baru ditetapkan:",
+      newTimeSet: "Waktu baru ditetapkan:",
       continueEditing: "Apakah Anda ingin mengubah yang lain?\n1️⃣ Ubah waktu juga\n2️⃣ Konfirmasi perubahan ini saja\n3️⃣ Batalkan perubahan\n\nKetik 1, 2, atau 3:",
-      confirmChanges: "Silakan konfirmasi perubahan Anda:\n\n📅 Tanggal baru: {date}\n⏰ Waktu baru: {time}\n\n1️⃣ Konfirmasi perubahan\n2️⃣ Buat perubahan lagi\n3️⃣ Batal\n\nKetik 1, 2, atau 3:",
-      updatingBooking: "✅ Memperbarui booking Anda...",
-      bookingUpdated: "🎉 Bagus! Booking Anda berhasil diperbarui.",
-      noChanges: "Tidak ada perubahan. Semoga hari Anda menyenangkan! 👋",
+      confirmChanges: "Silakan konfirmasi perubahan Anda:\n\nTanggal baru: {date}\nWaktu baru: {time}\n\n1️⃣ Konfirmasi perubahan\n2️⃣ Buat perubahan lagi\n3️⃣ Batal\n\nKetik 1, 2, atau 3:",
+      updatingBooking: "Memperbarui booking Anda...",
+      bookingUpdated: "Booking Anda berhasil diperbarui.",
+      noChanges: "Tidak ada perubahan. Semoga hari Anda menyenangkan.",
       completed: "Apakah ada hal lain yang bisa saya bantu?\n\n1️⃣ Edit booking lain\n2️⃣ Keluar\n\nKetik 1 atau 2:",
-      dateAlreadyPassed: "❌ Tanggal {date} sudah terlewat. Silakan pilih tanggal yang akan datang.\n\nSilakan masukkan tanggal yang valid (format DD-MM-YYYY):",
-      dateNotInEventPeriod: "❌ Tanggal {date} tidak dalam periode event. Event \"{eventName}\" berlangsung dari {startDate} sampai {endDate}. Silakan pilih tanggal dalam rentang ini.\n\nSilakan masukkan tanggal yang valid (format DD-MM-YYYY):",
-      invalidDateFormat: "❌ Silakan masukkan tanggal yang valid dalam format DD-MM-YYYY (contoh: 25-12-2025):",
-      dateTooFarFuture: "❌ Tanggal {date} terlalu jauh di masa depan. Silakan pilih tanggal dalam 2 tahun ke depan.\n\nSilakan masukkan tanggal yang valid (format DD-MM-YYYY):",
-      eventInfoNotFound: "⚠️ Tidak dapat memverifikasi rentang tanggal event, tetapi tanggal {date} tampak valid. Melanjutkan dengan validasi dasar.",
-      currentDateAndEnterNew: "📅 Tanggal saat ini: {currentDate}\n\nSilakan masukkan tanggal baru (format DD-MM-YYYY, contoh: 25-12-2025):",
-      currentDateTimeEnterDate: "📅 Tanggal saat ini: {currentDate}\n⏰ Waktu saat ini: {currentTime}\n\nMari mulai dengan tanggal. Silakan masukkan tanggal baru (format DD-MM-YYYY, contoh: 25-12-2025):",
+      dateAlreadyPassed: "Tanggal {date} sudah terlewat. Silakan pilih tanggal yang akan datang.\n\nSilakan masukkan tanggal yang valid (format DD-MM-YYYY):",
+      dateNotInEventPeriod: "Tanggal {date} tidak dalam periode event. Event \"{eventName}\" berlangsung dari {startDate} sampai {endDate}. Silakan pilih tanggal dalam rentang ini.\n\nSilakan masukkan tanggal yang valid (format DD-MM-YYYY):",
+      invalidDateFormat: "Silakan masukkan tanggal yang valid dalam format DD-MM-YYYY (contoh: 25-12-2025):",
+      dateTooFarFuture: "Tanggal {date} terlalu jauh di masa depan. Silakan pilih tanggal dalam 2 tahun ke depan.\n\nSilakan masukkan tanggal yang valid (format DD-MM-YYYY):",
+      eventInfoNotFound: "Tidak dapat memverifikasi rentang tanggal event, tetapi tanggal {date} tampak valid. Melanjutkan dengan validasi dasar.",
+      currentDateAndEnterNew: "Tanggal saat ini: {currentDate}\n\nSilakan masukkan tanggal baru (format DD-MM-YYYY, contoh: 25-12-2025):",
+      currentDateTimeEnterDate: "Tanggal saat ini: {currentDate}\nWaktu saat ini: {currentTime}\n\nMari mulai dengan tanggal. Silakan masukkan tanggal baru (format DD-MM-YYYY, contoh: 25-12-2025):",
       invalidChoice: "Silakan masukkan 1 untuk Tanggal, 2 untuk Waktu, 3 untuk Keduanya, atau 4 untuk Batal.",
-      currentDateWithEventRange: "📅 **Tanggal saat ini:** {currentDate}\n\n📅 **Event \"{eventName}\" tersedia dari:**\n🗓️ {startDate} sampai {endDate}\n\nSilakan masukkan tanggal baru dalam rentang ini (format DD-MM-YYYY, contoh: 25-12-2025):",
-      currentDateWithTimeAndEventRange: "📅 **Tanggal saat ini:** {currentDate}\n⏰ **Waktu saat ini:** {currentTime}\n\n📅 **Event \"{eventName}\" tersedia dari:**\n🗓️ {startDate} sampai {endDate}\n\nMari mulai dengan tanggal. Silakan masukkan tanggal baru dalam rentang ini (format DD-MM-YYYY, contoh: 25-12-2025):",
-      currentTimeEnterNew: "⏰ Waktu saat ini: {currentTime}\n\nSilakan masukkan waktu baru (format HH:MM, contoh: 14:30):",
+      currentDateWithEventRange: "**Tanggal saat ini:** {currentDate}\n\n**Event \"{eventName}\" tersedia dari:**\n{startDate} sampai {endDate}\n\nSilakan masukkan tanggal baru dalam rentang ini (format DD-MM-YYYY, contoh: 25-12-2025):",
+      currentDateWithTimeAndEventRange: "**Tanggal saat ini:** {currentDate}\n**Waktu saat ini:** {currentTime}\n\n**Event \"{eventName}\" tersedia dari:**\n{startDate} sampai {endDate}\n\nMari mulai dengan tanggal. Silakan masukkan tanggal baru dalam rentang ini (format DD-MM-YYYY, contoh: 25-12-2025):",
+      currentTimeEnterNew: "Waktu saat ini: {currentTime}\n\nSilakan masukkan waktu baru (format HH:MM, contoh: 14:30):",
       notSpecified: "Tidak ditentukan"
     }
   }
@@ -694,7 +694,7 @@ export default function BookingChatBot({ isOpen, onClose }: BookingChatBotProps)
           setEditingField('date')
           setCurrentStep('edit_date')
         } else if (trimmedInput === '4') {
-          addBotMessage("No changes made. Have a great day! 👋")
+          addBotMessage("No changes made. Have a great day!")
           setCurrentStep('completed')
         } else {
           addBotMessage(t('invalidChoice'))
@@ -706,7 +706,7 @@ export default function BookingChatBot({ isOpen, onClose }: BookingChatBotProps)
         if (/^\d{2}-\d{2}-\d{4}$/.test(trimmedInput) || /^\d{4}-\d{2}-\d{2}$/.test(trimmedInput)) {
           // Validate date with comprehensive checks
           if (bookingInfo?.eventName) {
-            addBotMessage("🔍 Validating date...")
+            addBotMessage("Validating date...")
             const eventInfo = await getEventInfoByName(bookingInfo.eventName)
             
             if (eventInfo) {
@@ -748,7 +748,7 @@ export default function BookingChatBot({ isOpen, onClose }: BookingChatBotProps)
           setNewBookingData(prev => ({ ...prev, date: dateForStorage }))
           
           if (editingField === 'date') {
-            addBotMessage(`📅 New date set: ${formatDateForDisplay(dateForStorage)}
+            addBotMessage(`New date set: ${formatDateForDisplay(dateForStorage)}
 
 Would you like to change anything else?
 1️⃣ Change time as well
@@ -758,7 +758,7 @@ Would you like to change anything else?
 Type 1, 2, or 3:`)
             setCurrentStep('ask_continue_editing')
           } else {
-            addBotMessage(`📅 Date set: ${formatDateForDisplay(dateForStorage)}\n\nNow please enter the new time (HH:MM format):`)
+            addBotMessage(`Date set: ${formatDateForDisplay(dateForStorage)}\n\nNow please enter the new time (HH:MM format):`)
             setCurrentStep('edit_time')
           }
         } else {
@@ -771,7 +771,7 @@ Type 1, 2, or 3:`)
           setNewBookingData(prev => ({ ...prev, time: trimmedInput }))
           
           if (editingField === 'time') {
-            addBotMessage(`⏰ New time set: ${trimmedInput}
+            addBotMessage(`New time set: ${trimmedInput}
 
 Would you like to change anything else?
 1️⃣ Change date as well
@@ -781,11 +781,11 @@ Would you like to change anything else?
 Type 1, 2, or 3:`)
             setCurrentStep('ask_continue_editing')
           } else {
-            addBotMessage(`⏰ Time set: ${trimmedInput}
+            addBotMessage(`Time set: ${trimmedInput}
 
-🔄 Ready to update your booking:
-${newBookingData.date ? `📅 New date: ${formatDateForDisplay(newBookingData.date)}` : ''}
-⏰ New time: ${trimmedInput}
+Ready to update your booking:
+${newBookingData.date ? `New date: ${formatDateForDisplay(newBookingData.date)}` : ''}
+New time: ${trimmedInput}
 
 Would you like to:
 1️⃣ Confirm these changes
@@ -803,18 +803,18 @@ Type 1, 2, or 3:`)
       case 'ask_continue_editing':
         if (trimmedInput === '1') {
           if (editingField === 'date') {
-            addBotMessage(`⏰ Current time: ${bookingInfo?.bookingTime || 'Not specified'}\n\nPlease enter the new time (HH:MM format):`)
+            addBotMessage(`Current time: ${bookingInfo?.bookingTime || 'Not specified'}\n\nPlease enter the new time (HH:MM format):`)
             setEditingField('time')
             setCurrentStep('edit_time')
           } else if (editingField === 'time') {
-            addBotMessage(`📅 Current date: ${formatDateForDisplay(bookingInfo?.bookingDate || '')}\n\nPlease enter the new date (DD-MM-YYYY format, e.g., 25-12-2025):`)
+            addBotMessage(`Current date: ${formatDateForDisplay(bookingInfo?.bookingDate || '')}\n\nPlease enter the new date (DD-MM-YYYY format, e.g., 25-12-2025):`)
             setEditingField('date')
             setCurrentStep('edit_date')
           } else {
             setCurrentStep('confirm_changes')
-            addBotMessage(`🔄 Ready to update your booking:
-${newBookingData.date ? `📅 New date: ${newBookingData.date}` : ''}
-${newBookingData.time ? `⏰ New time: ${newBookingData.time}` : ''}
+            addBotMessage(`Ready to update your booking:
+${newBookingData.date ? `New date: ${newBookingData.date}` : ''}
+${newBookingData.time ? `New time: ${newBookingData.time}` : ''}
 
 1️⃣ Confirm changes
 2️⃣ Cancel changes
@@ -823,9 +823,9 @@ Type 1 or 2:`)
           }
         } else if (trimmedInput === '2') {
           setCurrentStep('confirm_changes')
-          addBotMessage(`🔄 Ready to update your booking:
-${newBookingData.date ? `📅 New date: ${formatDateForDisplay(newBookingData.date)}` : ''}
-${newBookingData.time ? `⏰ New time: ${newBookingData.time}` : ''}
+          addBotMessage(`Ready to update your booking:
+${newBookingData.date ? `New date: ${formatDateForDisplay(newBookingData.date)}` : ''}
+${newBookingData.time ? `New time: ${newBookingData.time}` : ''}
 
 1️⃣ Confirm changes
 2️⃣ Cancel changes
@@ -850,12 +850,12 @@ Type 1 or 2:`)
           const success = await updateBookingInFirebase(bookingInfo!.id, updates)
           
           if (success) {
-            addBotMessage(`✅ Your booking has been successfully updated!
+            addBotMessage(`Your booking has been successfully updated!
 
-📋 **Updated Booking Details**
-🎫 Booking ID: ${bookingInfo?.bookingId}
-📅 ${newBookingData.date ? `New Date: ${formatDateForDisplay(newBookingData.date)}` : `Date: ${formatDateForDisplay(bookingInfo?.bookingDate || '')}`}
-⏰ ${newBookingData.time ? `New Time: ${newBookingData.time}` : `Time: ${bookingInfo?.bookingTime}`}
+**Updated Booking Details**
+Booking ID: ${bookingInfo?.bookingId}
+${newBookingData.date ? `New Date: ${formatDateForDisplay(newBookingData.date)}` : `Date: ${formatDateForDisplay(bookingInfo?.bookingDate || '')}`}
+${newBookingData.time ? `New Time: ${newBookingData.time}` : `Time: ${bookingInfo?.bookingTime}`}
 
 Would you like to make any other changes?
 1️⃣ Yes - Make more changes
@@ -873,7 +873,7 @@ Type 1 or 2:`)
             setNewBookingData({ date: '', time: '' })
             setCurrentStep('ask_more_changes')
           } else {
-            addBotMessage("❌ Sorry, there was an error updating your booking. Please try again or contact support.")
+            addBotMessage("Sorry, there was an error updating your booking. Please try again or contact support.")
             setCurrentStep('completed')
           }
         } else if (trimmedInput === '2') {
@@ -895,7 +895,7 @@ Type 1 or 2:`)
 Type 1, 2, 3, or 4:`)
           setCurrentStep('edit_options')
         } else if (trimmedInput === '2') {
-          addBotMessage("Perfect! Your booking has been successfully updated. Thank you for using our service! 🎉")
+          addBotMessage("Perfect! Your booking has been successfully updated. Thank you for using our service!")
           setCurrentStep('completed')
         } else {
           addBotMessage("Please enter 1 to make more changes or 2 if you're done.")
@@ -903,7 +903,7 @@ Type 1, 2, 3, or 4:`)
         break
 
       case 'completed':
-        addBotMessage("Chat session completed. You can close this window or start a new session. Have a great day! 👋")
+        addBotMessage("Chat session completed. You can close this window or start a new session. Have a great day!")
         break
 
       default:

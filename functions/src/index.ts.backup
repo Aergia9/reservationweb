@@ -1,0 +1,795 @@
+import {setGlobalOptions} from "firebase-functions";
+import {onRequest} from "firebase-functions/https";
+import * as logger from "firebase-functions/logger";
+import * as admin from "firebase-admin";
+
+// Initialize Firebase Admin SDK
+admin.initializeApp();
+const db = admin.firestore();
+
+// User session tracking for first-time users
+const userSessions = new Map<string, { isFirstMessage: boolean; lastInteraction: number }>();
+
+// Check if user is new or returning
+function isFirstTimeUser(phoneNumber: string): boolean {
+  const session = userSessions.get(phoneNumber);
+  const now = Date.now();
+  
+  if (!session || (now - session.lastInteraction) > 24 * 60 * 60 * 1000) { // 24 hours
+    userSessions.set(phoneNumber, { isFirstMessage: true, lastInteraction: now });
+    return true;
+  }
+  
+  userSessions.set(phoneNumber, { isFirstMessage: false, lastInteraction: now });
+  return false;
+}
+
+// For cost control, set maximum number of containers
+setGlobalOptions({ maxInstances: 10 });
+
+// WhatsApp webhook for customer service automation
+export const whatsappWebhook = onRequest(async (request, response) => {
+  try {
+    logger.info("WhatsApp webhook received", {
+      method: request.method,
+      body: request.body,
+      query: request.query,
+    });
+
+    // Handle webhook verification (required by WhatsApp)
+    if (request.method === "GET") {
+      const mode = request.query["hub.mode"];
+      const token = request.query["hub.verify_token"];
+      const challenge = request.query["hub.challenge"];
+
+      logger.info("Webhook verification attempt", {
+        mode,
+        token,
+        challenge,
+        expectedToken: process.env.WHATSAPP_VERIFY_TOKEN
+      });
+
+      // Verify token (set your verify token in environment config)
+      const VERIFY_TOKEN = process.env.WHATSAPP_VERIFY_TOKEN || "WhatsApp9Kx7mN2vE8qR5wZ3uC6pL4tY";
+      
+      if (mode === "subscribe" && token === VERIFY_TOKEN) {
+        logger.info("Webhook verified successfully");
+        response.status(200).send(challenge);
+        return;
+      } else {
+        logger.error("Webhook verification failed", {
+          receivedMode: mode,
+          receivedToken: token,
+          expectedToken: VERIFY_TOKEN
+        });
+        response.status(403).send("Forbidden");
+        return;
+      }
+    }
+
+    // Handle incoming messages
+    if (request.method === "POST") {
+      const body = request.body;
+
+      if (body.object === "whatsapp_business_account") {
+        // Process each entry
+        for (const entry of body.entry) {
+          for (const change of entry.changes) {
+            if (change.field === "messages") {
+              await processWhatsAppMessage(change.value);
+            }
+          }
+        }
+        
+        response.status(200).send("EVENT_RECEIVED");
+        return;
+      }
+    }
+
+    response.status(404).send("Not Found");
+  } catch (error) {
+    logger.error("Error in WhatsApp webhook", error);
+    response.status(500).send("Internal Server Error");
+  }
+});
+
+// Process incoming WhatsApp messages
+async function processWhatsAppMessage(messageData: any) {
+  try {
+    logger.info("Processing WhatsApp message", messageData);
+
+    if (!messageData.messages) {
+      return; // No messages to process
+    }
+
+    for (const message of messageData.messages) {
+      const phoneNumber = message.from;
+      const messageText = message.text?.body?.toLowerCase().trim();
+      const messageType = message.type;
+
+      logger.info("Message details", {
+        from: phoneNumber,
+        type: messageType,
+        text: messageText,
+      });
+
+      // Only process text messages
+      if (messageType !== "text" || !messageText) {
+        await sendWhatsAppMessage(phoneNumber, 
+          "Hello! I can help you with booking inquiries. Please send me text messages. 😊\n\n" +
+          "Reply with:\n" +
+          "1️⃣ Check booking status\n" +
+          "2️⃣ View current events\n" +
+          "3️⃣ Payment help\n" +
+          "4️⃣ Event services\n" +
+          "Or just type 'menu' anytime!");
+        continue;
+      }
+
+      // Check if it's the first message from this user
+      if (isFirstTimeUser(phoneNumber)) {
+        await sendWelcomeMenu(phoneNumber);
+        continue;
+      }
+
+      // Handle menu selections
+      if (messageText === "1" || messageText.includes("check booking")) {
+        await sendBookingHelp(phoneNumber);
+      } else if (messageText === "2" || messageText.includes("current events") || messageText.includes("view events")) {
+        await sendCurrentEvents(phoneNumber);
+      } else if (messageText === "3" || messageText.includes("payment")) {
+        await sendPaymentHelp(phoneNumber);
+      } else if (messageText === "4" || messageText.includes("event services")) {
+        await sendEventInfo(phoneNumber);
+      } else if (messageText === "menu" || messageText === "main menu" || messageText.includes("menu")) {
+        await sendWelcomeMenu(phoneNumber);
+      } else if (messageText.includes("help") || messageText.includes("bantuan")) {
+        await sendWelcomeMenu(phoneNumber);
+      } else if (messageText === "hi" || messageText === "hello" || messageText === "halo") {
+        await sendWelcomeMenu(phoneNumber);
+      } else {
+        // Check if message contains a booking ID pattern (assuming format like "BK-XXXXXX")
+        const bookingIdMatch = messageText.match(/\b[a-zA-Z]{2}-\w{6}\b/);
+        
+        if (bookingIdMatch) {
+          const bookingId = bookingIdMatch[0].toUpperCase();
+          await handleBookingInquiry(phoneNumber, bookingId);
+        } else {
+          // Default response with menu
+          await sendWhatsAppMessage(phoneNumber, 
+            `I didn't quite understand that. Let me help you! 😊\n\n` +
+            `Reply with:\n` +
+            `1️⃣ Check booking status\n` +
+            `2️⃣ View current events\n` +
+            `3️⃣ Payment help\n` +
+            `4️⃣ Event services\n\n` +
+            `💡 Tip: You can also send your booking ID directly (e.g., BK-ABC123)`);
+        }
+      }
+    }
+  } catch (error) {
+    logger.error("Error processing WhatsApp message", error);
+  }
+}
+
+// Send welcome menu for first-time or menu requests
+async function sendWelcomeMenu(phoneNumber: string) {
+  const message = `👋 *Welcome to Makassar Phinisi Sea Side Hotel!*
+
+🤖 Hi! I'm your digital assistant, here to help 24/7.
+
+*What do you need help with?*
+
+1️⃣ *Check booking status*
+   Send me your booking ID
+
+2️⃣ *View current events*  
+   See our available event packages
+
+3️⃣ *Payment help*
+   Payment process & assistance
+
+4️⃣ *Event services*
+   Learn about our event offerings
+
+💡 *Quick Tips:*
+• Just reply with a number (1, 2, 3, or 4)
+• Send your booking ID anytime (e.g., BK-ABC123)
+• Type "menu" to see this again
+
+What can I help you with today? 😊`;
+
+  await sendWhatsAppMessage(phoneNumber, message);
+}
+
+// Handle booking inquiry with booking ID
+async function handleBookingInquiry(phoneNumber: string, bookingId: string) {
+  try {
+    // Search for booking in Firestore
+    const bookingsRef = db.collection("bookings");
+    const querySnapshot = await bookingsRef.where("bookingId", "==", bookingId).get();
+
+    if (querySnapshot.empty) {
+      await sendWhatsAppMessage(phoneNumber, 
+        `❌ Sorry, I couldn't find a booking with ID: ${bookingId}
+
+Please check your booking ID and try again. The format should be like: BK-ABC123
+
+If you need help, you can:
+• Check your email confirmation
+• Contact our customer service
+• Reply "menu" for more assistance`);
+      return;
+    }
+
+    // Get booking data
+    const bookingDoc = querySnapshot.docs[0];
+    const booking = bookingDoc.data();
+
+    // Format booking information
+    const status = booking.paymentStatus === "approved" ? "✅ Confirmed" : "⏳ Pending Payment Approval";
+    const message = `📋 *Booking Information*
+
+*Booking ID:* ${booking.bookingId}
+*Event:* ${booking.eventName}
+*Customer:* ${booking.customerName}
+*Date:* ${new Date(booking.bookingDate).toLocaleDateString('en-US', { 
+      weekday: 'long', 
+      year: 'numeric', 
+      month: 'long', 
+      day: 'numeric' 
+    })}
+*Time:* ${booking.bookingTime || 'TBD'}
+*Guests:* ${booking.totalGuests} people
+*Total:* Rp${booking.totalPrice?.toLocaleString() || 'N/A'}
+*Status:* ${status}
+
+${booking.paymentStatus === "approved" 
+  ? "🎉 Your booking is confirmed! We look forward to hosting your event." 
+  : "📄 Your payment proof is being reviewed by our admin team. You'll receive an email confirmation once approved."}
+
+Reply "menu" for more assistance options.`;
+
+    await sendWhatsAppMessage(phoneNumber, message);
+
+    // Log the inquiry for analytics
+    await db.collection("whatsapp_inquiries").add({
+      phoneNumber,
+      bookingId,
+      timestamp: admin.firestore.FieldValue.serverTimestamp(),
+      type: "booking_inquiry"
+    });
+
+  } catch (error) {
+    logger.error("Error handling booking inquiry", error);
+    await sendWhatsAppMessage(phoneNumber, 
+      "❌ Sorry, there was an error retrieving your booking information. Please try again later or contact our customer service.");
+  }
+}
+
+// Send current events happening now
+async function sendCurrentEvents(phoneNumber: string) {
+  try {
+    // Get current events from Firestore
+    const eventsRef = db.collection("event");
+    const querySnapshot = await eventsRef.orderBy("createdAt", "desc").limit(5).get();
+
+    if (querySnapshot.empty) {
+      await sendWhatsAppMessage(phoneNumber, 
+        `🎪 *Current Events*
+
+Sorry, there are no events currently scheduled.
+
+However, we offer these services:
+• 🏢 Corporate meetings & conferences
+• 💍 Wedding celebrations  
+• 🎉 Birthday parties & celebrations
+• 🍽️ Catering services
+• 📸 Professional event photography
+
+Contact us to plan your custom event! ✨
+
+Reply "menu" for more options.`);
+      return;
+    }
+
+    let eventsMessage = `🎪 *Current Events Available*\n\n`;
+    
+    const events = querySnapshot.docs;
+    events.forEach((doc, index) => {
+      const event = doc.data();
+      eventsMessage += `${index + 1}. *${event.name}*\n`;
+      eventsMessage += `   💰 Price: Rp${Number(event.price).toLocaleString()}\n`;
+      eventsMessage += `   ⏰ Duration: ${event.duration}\n`;
+      eventsMessage += `   👥 Min. Guests: ${event.minGuests} people\n`;
+      if (event.description) {
+        eventsMessage += `   📝 ${event.description.substring(0, 80)}${event.description.length > 80 ? '...' : ''}\n`;
+      }
+      eventsMessage += `\n`;
+    });
+
+    eventsMessage += `📞 To book any event, visit our website or contact us!\n`;
+    eventsMessage += `💬 Send your booking ID for existing reservations.\n`;
+    eventsMessage += `📋 Reply "menu" for more assistance options.`;
+
+    await sendWhatsAppMessage(phoneNumber, eventsMessage);
+
+  } catch (error) {
+    logger.error("Error getting current events", error);
+    await sendWhatsAppMessage(phoneNumber, 
+      "❌ Sorry, there was an error retrieving current events. Please try again later or contact our customer service.");
+  }
+}
+
+// Send booking help information
+async function sendBookingHelp(phoneNumber: string) {
+  const message = `📋 *Booking Information*
+
+To check your booking status:
+• Send me your booking ID (format: BK-ABC123)
+• You can find your booking ID in your email confirmation
+
+For new bookings:
+• Visit our website to make a reservation
+• Choose your event/room type
+• Complete payment process
+• You'll receive a booking confirmation email
+
+Need immediate assistance? Contact our customer service team.
+
+Send your booking ID to get detailed information! 📞
+
+Reply "menu" for more options.`;
+
+  await sendWhatsAppMessage(phoneNumber, message);
+}
+
+// Send payment help information
+async function sendPaymentHelp(phoneNumber: string) {
+  const message = `💳 *Payment Information*
+
+Payment Process:
+1. Complete your booking on our website
+2. Upload your payment proof
+3. Our admin reviews your payment (usually within 24 hours)
+4. You'll receive email confirmation once approved
+
+Payment Status Check:
+• Send me your booking ID to check payment status
+• Check your email for confirmation updates
+
+Payment Methods:
+• Bank transfer
+• Other methods as specified during booking
+
+Questions about payment? Send your booking ID or contact customer service! 💰
+
+Reply "menu" for more options.`;
+
+  await sendWhatsAppMessage(phoneNumber, message);
+}
+
+// Send event information
+async function sendEventInfo(phoneNumber: string) {
+  const message = `🎉 *Event Services at Makassar Phinisi Sea Side Hotel*
+
+We offer comprehensive event planning services:
+
+🏢 *Corporate Events*
+• Business meetings & conferences
+• Product launches & presentations
+• Team building activities
+• Corporate dinners
+
+💍 *Wedding & Celebrations*
+• Wedding receptions
+• Anniversary celebrations
+• Engagement parties
+• Cultural ceremonies
+
+🎊 *Special Occasions*
+• Birthday parties
+• Graduation celebrations
+• Family reunions
+• Holiday events
+
+✨ *Premium Features*
+• Professional event planning
+• Catering & menu customization
+• Audio/visual equipment
+• Photography services
+• Scenic waterfront venue
+• Indoor & outdoor options
+
+📋 *How to Book*
+1. Visit our website for detailed packages
+2. Choose your event type & date
+3. Customize your requirements
+4. Complete booking & payment
+
+📱 *Quick Commands*
+• Reply "2" to see current event packages
+• Send your booking ID to check status
+• Reply "menu" for more assistance
+
+Ready to create unforgettable memories? Contact us today! 🌟`;
+
+  await sendWhatsAppMessage(phoneNumber, message);
+}
+
+// Send WhatsApp message via WhatsApp Business API
+async function sendWhatsAppMessage(phoneNumber: string, message: string) {
+  try {
+    const WHATSAPP_TOKEN = process.env.WHATSAPP_ACCESS_TOKEN;
+    const PHONE_NUMBER_ID = process.env.WHATSAPP_PHONE_NUMBER_ID;
+
+    if (!WHATSAPP_TOKEN || !PHONE_NUMBER_ID) {
+      logger.error("WhatsApp credentials not configured");
+      return;
+    }
+
+    const url = `https://graph.facebook.com/v18.0/${PHONE_NUMBER_ID}/messages`;
+    
+    const payload = {
+      messaging_product: "whatsapp",
+      to: phoneNumber,
+      type: "text",
+      text: {
+        body: message
+      }
+    };
+
+    const response = await fetch(url, {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${WHATSAPP_TOKEN}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(payload),
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      logger.error("Failed to send WhatsApp message", {
+        status: response.status,
+        error: errorText,
+      });
+    } else {
+      logger.info("WhatsApp message sent successfully", {
+        to: phoneNumber,
+        messageLength: message.length,
+      });
+    }
+  } catch (error) {
+    logger.error("Error sending WhatsApp message", error);
+  }
+}
+
+// Handle booking inquiry with booking ID
+async function handleBookingInquiry(phoneNumber: string, bookingId: string) {
+  try {
+    // Search for booking in Firestore
+    const bookingsRef = db.collection("bookings");
+    const querySnapshot = await bookingsRef.where("bookingId", "==", bookingId).get();
+
+    if (querySnapshot.empty) {
+      await sendWhatsAppMessage(phoneNumber, 
+        `❌ Sorry, I couldn't find a booking with ID: ${bookingId}
+
+Please check your booking ID and try again. The format should be like: BK-ABC123
+
+If you need help, you can:
+• Check your email confirmation
+• Contact our customer service
+• Send "help" for more assistance`);
+      return;
+    }
+
+    // Get booking data
+    const bookingDoc = querySnapshot.docs[0];
+    const booking = bookingDoc.data();
+
+    // Format booking information
+    const status = booking.paymentStatus === "approved" ? "✅ Confirmed" : "⏳ Pending Payment Approval";
+    const message = `📋 *Booking Information*
+
+*Booking ID:* ${booking.bookingId}
+*Event:* ${booking.eventName}
+*Customer:* ${booking.customerName}
+*Date:* ${new Date(booking.bookingDate).toLocaleDateString('en-US', { 
+      weekday: 'long', 
+      year: 'numeric', 
+      month: 'long', 
+      day: 'numeric' 
+    })}
+*Time:* ${booking.bookingTime || 'TBD'}
+*Guests:* ${booking.totalGuests} people
+*Total:* Rp${booking.totalPrice?.toLocaleString() || 'N/A'}
+*Status:* ${status}
+
+${booking.paymentStatus === "approved" 
+  ? "🎉 Your booking is confirmed! We look forward to hosting your event." 
+  : "📄 Your payment proof is being reviewed by our admin team. You'll receive an email confirmation once approved."}
+
+Need more help? Send "help" for assistance options.`;
+
+    await sendWhatsAppMessage(phoneNumber, message);
+
+    // Log the inquiry for analytics
+    await db.collection("whatsapp_inquiries").add({
+      phoneNumber,
+      bookingId,
+      timestamp: admin.firestore.FieldValue.serverTimestamp(),
+      type: "booking_inquiry"
+    });
+
+  } catch (error) {
+    logger.error("Error handling booking inquiry", error);
+    await sendWhatsAppMessage(phoneNumber, 
+      "❌ Sorry, there was an error retrieving your booking information. Please try again later or contact our customer service.");
+  }
+}
+
+// Send welcome menu for first-time or menu requests
+async function sendWelcomeMenu(phoneNumber: string) {
+  const message = `👋 *Welcome to Makassar Phinisi Sea Side Hotel!*
+
+🤖 Hi! I'm your digital assistant, here to help 24/7.
+
+*What do you need help with?*
+
+1️⃣ *Check booking status*
+   Send me your booking ID
+
+2️⃣ *View current events*  
+   See our available event packages
+
+3️⃣ *Payment help*
+   Payment process & assistance
+
+4️⃣ *Event services*
+   Learn about our event offerings
+
+💡 *Quick Tips:*
+• Just reply with a number (1, 2, 3, or 4)
+• Send your booking ID anytime (e.g., BK-ABC123)
+• Type "menu" to see this again
+
+What can I help you with today? 😊`;
+
+  await sendWhatsAppMessage(phoneNumber, message);
+}
+
+// Send booking help information
+async function sendBookingHelp(phoneNumber: string) {
+  const message = `📋 *Booking Information*
+
+To check your booking status:
+• Send me your booking ID (format: BK-ABC123)
+• You can find your booking ID in your email confirmation
+
+For new bookings:
+• Visit our website to make a reservation
+• Choose your event/room type
+• Complete payment process
+• You'll receive a booking confirmation email
+
+Need immediate assistance? Contact our customer service team.
+
+Send your booking ID to get detailed information! 📞`;
+
+  await sendWhatsAppMessage(phoneNumber, message);
+}
+
+// Send payment help information
+async function sendPaymentHelp(phoneNumber: string) {
+  const message = `💳 *Payment Information*
+
+Payment Process:
+1. Complete your booking on our website
+2. Upload your payment proof
+3. Our admin reviews your payment (usually within 24 hours)
+4. You'll receive email confirmation once approved
+
+Payment Status Check:
+• Send me your booking ID to check payment status
+• Check your email for confirmation updates
+
+Payment Methods:
+• Bank transfer
+• Other methods as specified during booking
+
+Questions about payment? Send your booking ID or contact customer service! 💰`;
+
+  await sendWhatsAppMessage(phoneNumber, message);
+}
+
+// Send current events happening now
+async function sendCurrentEvents(phoneNumber: string) {
+  try {
+    // Get current events from Firestore
+    const eventsRef = db.collection("event");
+    const querySnapshot = await eventsRef.orderBy("createdAt", "desc").limit(5).get();
+
+    if (querySnapshot.empty) {
+      await sendWhatsAppMessage(phoneNumber, 
+        `🎪 *Current Events*
+
+Sorry, there are no events currently scheduled.
+
+However, we offer these services:
+• 🏢 Corporate meetings & conferences
+• 💍 Wedding celebrations  
+• 🎉 Birthday parties & celebrations
+• 🍽️ Catering services
+• 📸 Professional event photography
+
+Contact us to plan your custom event! ✨`);
+      return;
+    }
+
+    let eventsMessage = `🎪 *Current Events Available*\n\n`;
+    
+    const events = querySnapshot.docs;
+    events.forEach((doc, index) => {
+      const event = doc.data();
+      eventsMessage += `${index + 1}. *${event.name}*\n`;
+      eventsMessage += `   💰 Price: Rp${Number(event.price).toLocaleString()}\n`;
+      eventsMessage += `   ⏰ Duration: ${event.duration}\n`;
+      eventsMessage += `   👥 Min. Guests: ${event.minGuests} people\n`;
+      if (event.description) {
+        eventsMessage += `   📝 ${event.description.substring(0, 80)}${event.description.length > 80 ? '...' : ''}\n`;
+      }
+      eventsMessage += `\n`;
+    });
+
+    eventsMessage += `📞 To book any event, visit our website or contact us!\n`;
+    eventsMessage += `💬 Send your booking ID for existing reservations.\n`;
+    eventsMessage += `📋 Send "help" for more assistance options.`;
+
+    await sendWhatsAppMessage(phoneNumber, eventsMessage);
+
+  } catch (error) {
+    logger.error("Error getting current events", error);
+    await sendWhatsAppMessage(phoneNumber, 
+      "❌ Sorry, there was an error retrieving current events. Please try again later or contact our customer service.");
+  }
+}
+
+// Send event information
+async function sendEventInfo(phoneNumber: string) {
+  const message = `🎉 *Event Services at Makassar Phinisi Sea Side Hotel*
+
+We offer comprehensive event planning services:
+
+🏢 *Corporate Events*
+• Business meetings & conferences
+• Product launches & presentations
+• Team building activities
+• Corporate dinners
+
+💍 *Wedding & Celebrations*
+• Wedding receptions
+• Anniversary celebrations
+• Engagement parties
+• Cultural ceremonies
+
+🎊 *Special Occasions*
+• Birthday parties
+• Graduation celebrations
+• Family reunions
+• Holiday events
+
+✨ *Premium Features*
+• Professional event planning
+• Catering & menu customization
+• Audio/visual equipment
+• Photography services
+• Scenic waterfront venue
+• Indoor & outdoor options
+
+📋 *How to Book*
+1. Visit our website for detailed packages
+2. Choose your event type & date
+3. Customize your requirements
+4. Complete booking & payment
+
+📱 *Quick Commands*
+• Send "current events" to see available packages
+• Send your booking ID to check status
+• Send "help" for more assistance
+
+Ready to create unforgettable memories? Contact us today! 🌟`;
+
+  await sendWhatsAppMessage(phoneNumber, message);
+}
+
+// Send general help information (UNUSED - replaced by sendWelcomeMenu)
+// async function sendGeneralHelp(phoneNumber: string) {
+  const message = `👋 *Welcome to Makassar Phinisi Sea Side Hotel*
+Your 24/7 Digital Assistant 🤖
+
+🔍 *Booking Services*
+• Send your booking ID (e.g., BK-ABC123) to check status
+• Get real-time booking information
+• Track payment approval status
+
+� *Event Information*
+• Send "current events" to see available packages
+• Send "event" for detailed event services
+• View pricing, duration & guest capacity
+
+� *Payment Assistance*
+• Send "payment" for payment help
+• Learn about payment methods
+• Check payment approval process
+
+� *Quick Commands*
+• "booking" → Booking assistance
+• "current events" → See available event packages
+• "payment" → Payment information
+• "event" → Event services overview
+• "help" → This menu
+
+🎯 *Smart Features*
+• Just send your booking ID anywhere in a message
+• Ask questions in English or Indonesian
+• Get instant responses 24/7
+
+📞 *Need Human Help?*
+For complex inquiries, contact our customer service team directly.
+
+💡 *Tip:* Your booking ID is in your email confirmation. Keep it handy for quick status checks!
+
+How can I assist you today? 😊`;
+
+  await sendWhatsAppMessage(phoneNumber, message);
+}
+
+// Send WhatsApp message via WhatsApp Business API
+async function sendWhatsAppMessage(phoneNumber: string, message: string) {
+  try {
+    const WHATSAPP_TOKEN = process.env.WHATSAPP_ACCESS_TOKEN;
+    const PHONE_NUMBER_ID = process.env.WHATSAPP_PHONE_NUMBER_ID;
+
+    if (!WHATSAPP_TOKEN || !PHONE_NUMBER_ID) {
+      logger.error("WhatsApp credentials not configured");
+      return;
+    }
+
+    const url = `https://graph.facebook.com/v18.0/${PHONE_NUMBER_ID}/messages`;
+    
+    const payload = {
+      messaging_product: "whatsapp",
+      to: phoneNumber,
+      type: "text",
+      text: {
+        body: message
+      }
+    };
+
+    const response = await fetch(url, {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${WHATSAPP_TOKEN}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(payload),
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      logger.error("Failed to send WhatsApp message", {
+        status: response.status,
+        error: errorText,
+      });
+    } else {
+      logger.info("WhatsApp message sent successfully", {
+        to: phoneNumber,
+        messageLength: message.length,
+      });
+    }
+  } catch (error) {
+    logger.error("Error sending WhatsApp message", error);
+  }
+}
