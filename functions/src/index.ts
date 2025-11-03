@@ -195,6 +195,12 @@ async function processWhatsAppMessage(messageData: any) {
         continue;
       }
 
+      // Test command for webhook verification (placed early to bypass other checks)
+      if (messageText === "project test") {
+        await sendWhatsAppMessage(phoneNumber, "✅ Project test successful! The webhook is connected and working properly.");
+        continue;
+      }
+
       const userLanguage = getUserLanguage(phoneNumber) || 'en';
 
       // Handle language selection
