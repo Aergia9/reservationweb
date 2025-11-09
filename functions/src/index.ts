@@ -1,10 +1,44 @@
-import {setGlobalOptions} from "firebase-functions";
+import {setGlobalOptions, config as functionsConfig} from "firebase-functions";
 import {onRequest} from "firebase-functions/https";
 import * as logger from "firebase-functions/logger";
 import * as admin from "firebase-admin";
 
-// Initialize Firebase Admin SDK
-const app = admin.initializeApp();
+// Initialize Firebase Admin SDK with a default bucket (we will lazily verify later in runtime).
+const PROJECT_ID = process.env.GCP_PROJECT || process.env.GCLOUD_PROJECT || process.env.GOOGLE_CLOUD_PROJECT || 'reservationweb-4b61a';
+const explicitBucketEnv = process.env.STORAGE_BUCKET || (functionsConfig()?.firebase?.storage_bucket as string | undefined);
+const consoleBucket = `${PROJECT_ID}.firebasestorage.app`;
+const legacyBucket = `${PROJECT_ID}.appspot.com`;
+
+const preferredBucket = explicitBucketEnv || consoleBucket;
+
+const app = admin.initializeApp({ storageBucket: preferredBucket });
+logger.info('Storage bucket configured (lazy verify at upload time)', { preferredBucket, explicitBucketEnv, consoleBucket, legacyBucket });
+
+// Helper to resolve a working bucket at runtime
+// Type fallback because admin.storage().bucket() returns an internal Bucket type
+async function resolveActiveBucket() { //: ReturnType<typeof admin.storage().bucket>
+  // 1) If env explicitly set, try it first
+  const configured = explicitBucketEnv;
+  const tryNames = [configured, consoleBucket, legacyBucket].filter(Boolean) as string[];
+
+  for (const name of tryNames) {
+    try {
+      const b = admin.storage().bucket(name);
+      // Lightweight list call to verify bucket exists
+      await b.getFiles({ maxResults: 1 });
+      if (name !== preferredBucket) {
+        logger.warn('Using non-preferred bucket at runtime', { name });
+      }
+      return b;
+    } catch (e:any) {
+      logger.error('Bucket candidate failed verification', { name, message: e?.message });
+      continue;
+    }
+  }
+
+  // Fallback to default app bucket (may still fail but we log it)
+  return admin.storage().bucket();
+}
 
 // Connect to the "event" database to match client-side configuration
 // For Firebase Functions, we need to specify the database ID in the options
@@ -43,10 +77,34 @@ const userSessions = new Map<string, {
     newDate?: string;
     newTime?: string;
   };
+  newBooking?: {
+    step: 'selecting_event' | 'awaiting_name' | 'awaiting_email' | 'awaiting_phone' | 'awaiting_children' | 'awaiting_adults' | 'awaiting_date' | 'confirming';
+    eventId?: string;
+    eventName?: string;
+    eventPrice?: number;
+    eventStartDate?: Date;
+    eventEndDate?: Date;
+    firstName?: string;
+    lastName?: string;
+    email?: string;
+    phone?: string;
+    children?: number;
+    adults?: number;
+    guests?: number;
+    bookingDate?: string;
+  };
+  paymentUpload?: {
+    bookingId: string;
+  };
+  paymentSelection?: {
+    bookingId: string;
+    step: 'awaiting_method';
+  };
 }>();
 
 // For cost control, set maximum number of containers
 setGlobalOptions({ maxInstances: 10 });
+// Updated: Enhanced error logging for media upload debugging
 
 // WhatsApp webhook for customer service automation
 export const whatsappWebhook = onRequest(async (request, response) => {
@@ -70,8 +128,13 @@ export const whatsappWebhook = onRequest(async (request, response) => {
         expectedToken: process.env.WHATSAPP_VERIFY_TOKEN
       });
 
-      // Verify token
-      const VERIFY_TOKEN = process.env.WHATSAPP_VERIFY_TOKEN || "WhatsApp9Kx7mN2vE8qR5wZ3uC6pL4tY";
+    // Verify token (must be supplied via env/config; no insecure fallback)
+  const VERIFY_TOKEN = process.env.WHATSAPP_VERIFY_TOKEN || (functionsConfig()?.whatsapp?.verify_token as string);
+  if (!VERIFY_TOKEN) {
+    logger.error("Missing WHATSAPP_VERIFY_TOKEN configuration. Refusing verification.");
+    response.status(500).send("Server not configured");
+    return;
+  }
       
       if (mode === "subscribe" && token === VERIFY_TOKEN) {
         logger.info("Webhook verified successfully");
@@ -172,15 +235,46 @@ async function processWhatsAppMessage(messageData: any) {
     if (!messageData.messages) return;
 
     for (const message of messageData.messages) {
-      const phoneNumber = message.from;
-      const messageText = message.text?.body?.toLowerCase().trim() || "";
-      const messageType = message.type;
+  const phoneNumber = message.from;
+  const messageText = message.text?.body?.toLowerCase().trim() || "";
+  const messageType = message.type;
+  const userLanguage = getUserLanguage(phoneNumber) || 'en';
 
       logger.info("Message received", { from: phoneNumber, text: messageText, type: messageType });
 
-      // Only process text messages
+      // If user sends an image (photo) OR a document that is an image, and we're expecting payment proof, handle it
+      const isImageDocument = messageType === "document" && (message.document?.mime_type?.startsWith("image/") ?? false);
+      if (messageType === "image" || isImageDocument) {
+        // Quick mime validation before doing heavier work downstream
+        const incomingMime = message.image?.mime_type || message.document?.mime_type || '';
+        if (incomingMime && !incomingMime.startsWith('image/')) {
+          await sendWhatsAppMessage(phoneNumber, userLanguage === 'id' ? 'File bukan gambar. Kirim bukti pembayaran sebagai foto atau gambar.' : 'The file isn\'t an image. Please send payment proof as a photo/image.');
+          continue;
+        }
+        logger.info("Incoming media message", {
+          type: messageType,
+          mediaId: message.image?.id || message.document?.id,
+          mime: message.image?.mime_type || message.document?.mime_type,
+          from: phoneNumber,
+        });
+        const session = userSessions.get(phoneNumber);
+        if (session?.paymentUpload?.bookingId) {
+          const mediaId = message.image?.id || message.document?.id;
+          await handlePaymentProofUpload(phoneNumber, session.paymentUpload.bookingId, mediaId, userLanguage);
+          // After handling, continue to next message
+          continue;
+        } else {
+          const msg = userLanguage === 'id'
+            ? "Untuk unggah bukti pembayaran, silakan ketik ID booking Anda dulu atau balas '3' untuk bantuan pembayaran."
+            : "To upload payment proof, please send your booking ID first or reply '3' for payment help.";
+          await sendWhatsAppMessage(phoneNumber, msg);
+          continue;
+        }
+      }
+
+      // Only process other message types as text flow
       if (messageType !== "text") {
-        await sendWelcomeMenu(phoneNumber);
+        await sendWelcomeMenu(phoneNumber, userLanguage);
         continue;
       }
 
@@ -201,7 +295,7 @@ async function processWhatsAppMessage(messageData: any) {
         continue;
       }
 
-      const userLanguage = getUserLanguage(phoneNumber) || 'en';
+  // userLanguage already resolved above
 
       // Handle language selection
       if (messageText === "english" || messageText === "en") {
@@ -218,6 +312,48 @@ async function processWhatsAppMessage(messageData: any) {
       const session = userSessions.get(phoneNumber);
       if (session?.bookingModification) {
         await handleBookingModification(phoneNumber, messageText, userLanguage);
+        continue;
+      }
+
+      // Handle payment method selection flow
+      if (session?.paymentSelection) {
+        await handlePaymentMethodSelection(phoneNumber, messageText, userLanguage);
+        continue;
+      }
+
+      // Global cancel for payment flows
+      if (messageText === 'cancel' || messageText === 'batal') {
+        const sessionCancel = userSessions.get(phoneNumber);
+        if (sessionCancel?.paymentSelection || sessionCancel?.paymentUpload) {
+          if (sessionCancel.paymentSelection) delete sessionCancel.paymentSelection;
+          if (sessionCancel.paymentUpload) delete sessionCancel.paymentUpload;
+          userSessions.set(phoneNumber, sessionCancel);
+          const cancelMsg = userLanguage === 'id'
+            ? '❌ Proses pembayaran dibatalkan. Ketik "menu" untuk kembali atau mulai booking baru.'
+            : '❌ Payment process cancelled. Type "menu" to return or start a new booking.';
+          await sendWhatsAppMessage(phoneNumber, cancelMsg);
+          continue;
+        }
+      }
+
+      // Resend proof command: 'resend <bookingId>' or 'kirim ulang <bookingId>'
+      if (messageText.startsWith('resend') || messageText.startsWith('kirim ulang')) {
+        const parts = messageText.split(/\s+/);
+        const maybeId = parts.slice(1).join(' ').trim();
+        if (!maybeId) {
+          const errMsg = userLanguage === 'id'
+            ? 'Format perintah salah. Gunakan: kirim ulang <IDBooking>'
+            : 'Invalid command format. Use: resend <BookingID>';
+          await sendWhatsAppMessage(phoneNumber, errMsg);
+          continue;
+        }
+        await reactivatePaymentProof(phoneNumber, maybeId.toUpperCase(), userLanguage);
+        continue;
+      }
+
+      // Handle new booking flow
+      if (session?.newBooking) {
+        await handleNewBookingFlow(phoneNumber, messageText, userLanguage);
         continue;
       }
 
@@ -250,7 +386,8 @@ async function processWhatsAppMessage(messageData: any) {
       } else if (messageText === "2") {
         await sendCurrentEvents(phoneNumber, userLanguage);
       } else if (messageText === "3") {
-        await sendPaymentHelp(phoneNumber, userLanguage);
+        // Start new booking flow
+        await startNewBookingFlow(phoneNumber, userLanguage);
       } else if (messageText.includes("menu")) {
         await sendWelcomeMenu(phoneNumber, userLanguage);
       } else if (messageText === "edit" || messageText === "modify") {
@@ -295,7 +432,7 @@ async function sendWelcomeMenu(phoneNumber: string, language: 'en' | 'id' = 'en'
       question: "*How may I assist you today?*",
       option1: "1️⃣ Check booking status",
       option2: "2️⃣ View current events",
-      option3: "3️⃣ Payment assistance",
+      option3: "3️⃣ Book an event",
       tips: "*Quick Guide:*",
       tip1: "• Reply with a number (1, 2, or 3)",
       tip2: "• Send your booking ID for assistance (e.g., BK-ABC123)",
@@ -308,7 +445,7 @@ async function sendWelcomeMenu(phoneNumber: string, language: 'en' | 'id' = 'en'
       question: "*Bagaimana saya dapat membantu Anda hari ini?*",
       option1: "1️⃣ Cek status booking",
       option2: "2️⃣ Lihat event terkini",
-      option3: "3️⃣ Bantuan pembayaran",
+      option3: "3️⃣ Booking event",
       tips: "*Panduan Cepat:*",
       tip1: "• Balas dengan angka (1, 2, atau 3)",
       tip2: "• Kirim ID booking untuk bantuan (contoh: BK-ABC123)",
@@ -360,7 +497,14 @@ async function handleBookingInquiry(phoneNumber: string, bookingId: string, lang
 
     const booking = querySnapshot.docs[0].data();
     logger.info(`Found booking:`, booking);
-    const status = booking.paymentStatus === "approved" ? "Confirmed" : "Pending Approval";
+    const status = booking.paymentStatus === "approved" ? (language==='id' ? 'Terkonfirmasi' : 'Confirmed') : booking.paymentStatus === 'reviewing' ? (language==='id' ? 'Sedang Ditinjau' : 'Under Review') : (language==='id' ? 'Menunggu' : 'Pending');
+
+    // If no payment proof yet but payment method chosen, prompt user to upload proof and set session state
+    if (!booking.paymentImageUrl && booking.paymentMethod) {
+      const session = userSessions.get(phoneNumber) || { isFirstMessage:false, lastInteraction:Date.now(), language: language };
+      session.paymentUpload = { bookingId };
+      userSessions.set(phoneNumber, session);
+    }
     
     const message = `*Booking Information*
 
@@ -373,12 +517,12 @@ async function handleBookingInquiry(phoneNumber: string, bookingId: string, lang
 *Status:* ${status}
 
 ${booking.paymentStatus === "approved" 
-  ? "Your booking is confirmed." 
-  : "Your payment is being reviewed."}
+  ? (language==='id'? 'Booking Anda sudah dikonfirmasi.' : 'Your booking is confirmed.') 
+  : booking.paymentStatus === 'reviewing' ? (language==='id'? 'Bukti pembayaran Anda sedang ditinjau.' : 'Your payment proof is under review.') : (language==='id'? 'Silakan kirim bukti pembayaran jika belum.' : 'Please send your payment proof if not yet sent.')}
 
 ${language === 'id' 
-  ? "*Ingin mengubah booking?* Ketik 'edit' untuk mengubah tanggal/waktu.\n\nBalas 'menu' untuk opsi lainnya." 
-  : "*Want to modify your booking?* Type 'edit' to change date/time.\n\nReply 'menu' for more options."}`;
+  ? (booking.paymentImageUrl ? '*Ingin mengubah booking?* Ketik "edit". Balas "menu" untuk opsi lainnya.' : '*Kirim bukti pembayaran dengan mengirim foto sekarang.*\n\nKetik "edit" untuk ubah tanggal/waktu. Balas "menu" untuk opsi lain.') 
+  : (booking.paymentImageUrl ? '*Want to modify your booking?* Type "edit". Reply "menu" for more options.' : '*Send your payment proof by attaching a photo now.*\n\nType "edit" to modify date/time. Reply "menu" for more options.')}`;
 
     await sendWhatsAppMessage(phoneNumber, message);
     
@@ -682,62 +826,7 @@ ${msg.note}
 ${msg.footer}`;
 
   await sendWhatsAppMessage(phoneNumber, message);
-}// Send payment help
-async function sendPaymentHelp(phoneNumber: string, language: 'en' | 'id' = 'en') {
-  const messages = {
-    en: {
-      title: "*Payment Assistance*",
-      process: "Payment Process:",
-      steps: "1. Complete booking on website\n2. Upload payment proof\n3. Admin reviews (24 hours)\n4. Email confirmation sent",
-      checkStatus: "Send your booking ID to check payment status.",
-      footer: "Reply \"menu\" for more options."
-    },
-    id: {
-      title: "*Bantuan Pembayaran*",
-      process: "Proses Pembayaran:",
-      steps: "1. Selesaikan booking di website\n2. Upload bukti pembayaran\n3. Admin review (24 jam)\n4. Email konfirmasi dikirim",
-      checkStatus: "Kirim ID booking untuk cek status pembayaran.",
-      footer: "Balas \"menu\" untuk opsi lainnya."
-    }
-  };
-
-  const msg = messages[language];
-  const message = `${msg.title}
-
-${msg.process}
-${msg.steps}
-
-${msg.checkStatus}
-
-${msg.footer}`;
-  
-  await sendWhatsAppMessage(phoneNumber, message);
 }
-
-/*
-// Send event info (UNUSED - option 4 removed)
-async function sendEventInfo(phoneNumber: string) {
-  const message = `🎉 *Event Services*
-
-We offer:
-🏢 Corporate events
-💍 Weddings
-🎊 Birthday parties
-🍽️ Catering services
-
-Features:
-• Professional planning
-• Scenic waterfront venue
-• Equipment included
-• Photography services
-
-Visit our website to book!
-
-Reply "menu" for more options.`;
-  
-  await sendWhatsAppMessage(phoneNumber, message);
-}
-*/
 
 // Send help message for unrecognized input
 async function sendHelpMessage(phoneNumber: string, language: 'en' | 'id' = 'en') {
@@ -951,7 +1040,7 @@ async function sendEventDetails(phoneNumber: string, eventName: string, language
 // Send event image
 async function sendEventImage(phoneNumber: string, imageUrl: string) {
   try {
-    const WHATSAPP_TOKEN = process.env.WHATSAPP_ACCESS_TOKEN;
+  const WHATSAPP_TOKEN = process.env.WHATSAPP_ACCESS_TOKEN || (functionsConfig()?.whatsapp?.access_token as string);
     const PHONE_NUMBER_ID = process.env.WHATSAPP_PHONE_NUMBER_ID;
 
     const response = await fetch(`https://graph.facebook.com/v17.0/${PHONE_NUMBER_ID}/messages`, {
@@ -1448,11 +1537,758 @@ ${msg.menu}`;
   }
 }
 
+  // Start new booking flow
+  async function startNewBookingFlow(phoneNumber: string, language: 'en' | 'id' = 'en') {
+    try {
+      // Get available events
+      const eventsRef = db.collection('event');
+      const querySnapshot = await eventsRef.get();
+    
+      const availableEvents: any[] = [];
+    
+      querySnapshot.docs.forEach((doc: any) => {
+        const event = doc.data();
+      
+        // Skip booking documents
+        if (event.bookingId || event.bookingType === 'event') {
+          return;
+        }
+      
+        // Check if event is active (within date range)
+        let isActive = false;
+        if (event.startDate && event.endDate) {
+          let startDate: Date;
+          let endDate: Date;
+          
+          if (typeof event.startDate.toDate === 'function') {
+            startDate = event.startDate.toDate();
+          } else {
+            startDate = new Date(event.startDate);
+          }
+          
+          if (typeof event.endDate.toDate === 'function') {
+            endDate = event.endDate.toDate();
+          } else {
+            endDate = new Date(event.endDate);
+          }
+          
+          // Set to start/end of day for comparison
+          startDate.setHours(0, 0, 0, 0);
+          endDate.setHours(23, 59, 59, 999);
+          const today = new Date();
+          today.setHours(0, 0, 0, 0);
+          
+          // Event is active if today is between start and end date
+          isActive = today >= startDate && today <= endDate;
+          
+          if (isActive) {
+            availableEvents.push({
+              id: doc.id,
+              name: event.name || event.title || event.eventName,
+              price: event.price,
+              startDate: startDate,
+              endDate: endDate
+            });
+          }
+        }
+      });
+    
+      if (availableEvents.length === 0) {
+        const message = language === 'id' ?
+          "Maaf, saat ini tidak ada event yang tersedia untuk booking. Silakan coba lagi nanti." :
+          "Sorry, there are no events available for booking at the moment. Please try again later.";
+        await sendWhatsAppMessage(phoneNumber, message);
+        return;
+      }
+    
+      // Initialize booking session
+      const currentSession = userSessions.get(phoneNumber) || { 
+        isFirstMessage: false, 
+        lastInteraction: Date.now(), 
+        language: language 
+      };
+    
+      currentSession.newBooking = {
+        step: 'selecting_event'
+      };
+    
+      userSessions.set(phoneNumber, currentSession);
+    
+      // Send event list
+      const messages = {
+        en: {
+          title: "*Book an Event* 🎉",
+          subtitle: "Select an event by replying with the number:",
+          footer: "Reply 'cancel' to cancel booking"
+        },
+        id: {
+          title: "*Booking Event* 🎉",
+          subtitle: "Pilih event dengan membalas nomornya:",
+          footer: "Balas 'cancel' untuk membatalkan booking"
+        }
+      };
+    
+      const msg = messages[language];
+      let message = `${msg.title}\n\n${msg.subtitle}\n\n`;
+    
+      availableEvents.slice(0, 5).forEach((event, index) => {
+        message += `${index + 1}. ${event.name} - Rp${Number(event.price || 0).toLocaleString()}\n`;
+      });
+    
+      message += `\n${msg.footer}`;
+    
+      await sendWhatsAppMessage(phoneNumber, message);
+    
+    } catch (error) {
+      logger.error("Error starting new booking flow", error);
+      const errorMsg = language === 'id' ?
+        "Error memulai booking. Silakan coba lagi." :
+        "Error starting booking. Please try again.";
+      await sendWhatsAppMessage(phoneNumber, errorMsg);
+    }
+  }
+
+  // Handle new booking flow
+  async function handleNewBookingFlow(phoneNumber: string, messageText: string, language: 'en' | 'id' = 'en') {
+    try {
+      const session = userSessions.get(phoneNumber);
+      if (!session?.newBooking) return;
+    
+      // Allow cancellation at any step
+      if (messageText === 'cancel' || messageText === 'batal') {
+        delete session.newBooking;
+        userSessions.set(phoneNumber, session);
+        const cancelMsg = language === 'id' ?
+          "Booking dibatalkan. Ketik 'menu' untuk kembali ke menu utama." :
+          "Booking cancelled. Type 'menu' to return to main menu.";
+        await sendWhatsAppMessage(phoneNumber, cancelMsg);
+        return;
+      }
+    
+      const step = session.newBooking.step;
+    
+      if (step === 'selecting_event') {
+        // User selected an event number
+        const eventNumber = parseInt(messageText);
+        if (isNaN(eventNumber) || eventNumber < 1) {
+          const errorMsg = language === 'id' ?
+            "Nomor tidak valid. Silakan pilih nomor event yang tersedia." :
+            "Invalid number. Please select an available event number.";
+          await sendWhatsAppMessage(phoneNumber, errorMsg);
+          return;
+        }
+      
+        // Get the event
+        const eventsRef = db.collection('event');
+        const querySnapshot = await eventsRef.get();
+        const availableEvents: any[] = [];
+        const now = new Date();
+        now.setHours(0, 0, 0, 0);
+      
+        querySnapshot.docs.forEach((doc: any) => {
+          const event = doc.data();
+          if (!event.bookingId && event.bookingType !== 'event') {
+            // Check if event is active
+            let isActive = false;
+            if (event.startDate && event.endDate) {
+              let startDate: Date;
+              let endDate: Date;
+              
+              if (typeof event.startDate.toDate === 'function') {
+                startDate = event.startDate.toDate();
+              } else {
+                startDate = new Date(event.startDate);
+              }
+              
+              if (typeof event.endDate.toDate === 'function') {
+                endDate = event.endDate.toDate();
+              } else {
+                endDate = new Date(event.endDate);
+              }
+              
+              startDate.setHours(0, 0, 0, 0);
+              endDate.setHours(23, 59, 59, 999);
+              
+              isActive = now >= startDate && now <= endDate;
+              
+              if (isActive) {
+                availableEvents.push({
+                  id: doc.id,
+                  name: event.name || event.title || event.eventName,
+                  price: event.price,
+                  startDate: startDate,
+                  endDate: endDate
+                });
+              }
+            }
+          }
+        });
+      
+        if (eventNumber > availableEvents.length) {
+          const errorMsg = language === 'id' ?
+            "Nomor event tidak valid. Silakan pilih nomor yang tersedia." :
+            "Invalid event number. Please select an available number.";
+          await sendWhatsAppMessage(phoneNumber, errorMsg);
+          return;
+        }
+      
+        const selectedEvent = availableEvents[eventNumber - 1];
+        session.newBooking.eventId = selectedEvent.id;
+        session.newBooking.eventName = selectedEvent.name;
+        session.newBooking.eventPrice = selectedEvent.price;
+        session.newBooking.eventStartDate = selectedEvent.startDate;
+        session.newBooking.eventEndDate = selectedEvent.endDate;
+        session.newBooking.step = 'awaiting_name';
+        userSessions.set(phoneNumber, session);
+      
+        const namePrompt = language === 'id' ?
+          `Event dipilih: *${selectedEvent.name}*\n\nSilakan masukkan nama lengkap Anda (Nama Depan dan Belakang):` :
+          `Selected event: *${selectedEvent.name}*\n\nPlease enter your full name (First and Last Name):`;
+        await sendWhatsAppMessage(phoneNumber, namePrompt);
+      
+      } else if (step === 'awaiting_name') {
+        // Parse name (first and last)
+        const nameParts = messageText.trim().split(' ');
+        if (nameParts.length < 2) {
+          const errorMsg = language === 'id' ?
+            "Silakan masukkan nama lengkap Anda (Nama Depan dan Belakang)." :
+            "Please enter your full name (First and Last Name).";
+          await sendWhatsAppMessage(phoneNumber, errorMsg);
+          return;
+        }
+      
+        session.newBooking.firstName = nameParts[0];
+        session.newBooking.lastName = nameParts.slice(1).join(' ');
+        session.newBooking.step = 'awaiting_email';
+        userSessions.set(phoneNumber, session);
+      
+        const emailPrompt = language === 'id' ?
+          "Silakan masukkan alamat email Anda:" :
+          "Please enter your email address:";
+        await sendWhatsAppMessage(phoneNumber, emailPrompt);
+      
+      } else if (step === 'awaiting_email') {
+        // Validate email
+        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+        if (!emailRegex.test(messageText)) {
+          const errorMsg = language === 'id' ?
+            "Format email tidak valid. Silakan masukkan email yang benar." :
+            "Invalid email format. Please enter a valid email.";
+          await sendWhatsAppMessage(phoneNumber, errorMsg);
+          return;
+        }
+      
+        session.newBooking.email = messageText.trim();
+        session.newBooking.step = 'awaiting_phone';
+        userSessions.set(phoneNumber, session);
+      
+        const phonePrompt = language === 'id' ?
+          "Silakan masukkan nomor telepon Anda:" :
+          "Please enter your phone number:";
+        await sendWhatsAppMessage(phoneNumber, phonePrompt);
+      
+      } else if (step === 'awaiting_phone') {
+        session.newBooking.phone = messageText.trim();
+        session.newBooking.step = 'awaiting_children';
+        userSessions.set(phoneNumber, session);
+      
+        const childrenPrompt = language === 'id' ?
+          "Berapa jumlah anak-anak? (Jika tidak ada, ketik 0)" :
+          "How many children? (If none, type 0)";
+        await sendWhatsAppMessage(phoneNumber, childrenPrompt);
+      
+      } else if (step === 'awaiting_children') {
+        const children = parseInt(messageText);
+        if (isNaN(children) || children < 0) {
+          const errorMsg = language === 'id' ?
+            "Jumlah anak-anak tidak valid. Silakan masukkan angka 0 atau lebih." :
+            "Invalid children number. Please enter 0 or more.";
+          await sendWhatsAppMessage(phoneNumber, errorMsg);
+          return;
+        }
+      
+        session.newBooking.children = children;
+        session.newBooking.step = 'awaiting_adults';
+        userSessions.set(phoneNumber, session);
+      
+        const adultsPrompt = language === 'id' ?
+          "Berapa jumlah orang dewasa?" :
+          "How many adults?";
+        await sendWhatsAppMessage(phoneNumber, adultsPrompt);
+      
+      } else if (step === 'awaiting_adults') {
+        const adults = parseInt(messageText);
+        if (isNaN(adults) || adults < 1) {
+          const errorMsg = language === 'id' ?
+            "Jumlah orang dewasa tidak valid. Minimal 1 orang dewasa." :
+            "Invalid adult number. Minimum 1 adult required.";
+          await sendWhatsAppMessage(phoneNumber, errorMsg);
+          return;
+        }
+      
+        session.newBooking.adults = adults;
+        session.newBooking.guests = adults + (session.newBooking.children || 0);
+        session.newBooking.step = 'awaiting_date';
+        userSessions.set(phoneNumber, session);
+      
+        const datePrompt = language === 'id' ?
+          "Silakan masukkan tanggal booking (format: DD/MM/YYYY):" :
+          "Please enter booking date (format: DD/MM/YYYY):";
+        await sendWhatsAppMessage(phoneNumber, datePrompt);
+      
+      } else if (step === 'awaiting_date') {
+        // Validate date format
+        const dateRegex = /^(\d{2})\/(\d{2})\/(\d{4})$/;
+        const match = messageText.match(dateRegex);
+      
+        if (!match) {
+          const errorMsg = language === 'id' ?
+            "Format tanggal tidak valid. Gunakan format DD/MM/YYYY (contoh: 15/12/2024)." :
+            "Invalid date format. Use DD/MM/YYYY format (example: 15/12/2024).";
+          await sendWhatsAppMessage(phoneNumber, errorMsg);
+          return;
+        }
+      
+        // Parse date
+        const [, day, month, year] = match;
+        const bookingDate = new Date(parseInt(year), parseInt(month) - 1, parseInt(day));
+        bookingDate.setHours(0, 0, 0, 0);
+        
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+      
+        // Check if date is in the past
+        if (bookingDate < today) {
+          const errorMsg = language === 'id' ?
+            "Tanggal tidak boleh di masa lalu. Silakan masukkan tanggal yang akan datang:" :
+            "Date cannot be in the past. Please enter a future date:";
+          await sendWhatsAppMessage(phoneNumber, errorMsg);
+          return;
+        }
+      
+        // Check if date is within event period
+        const eventStartDate = session.newBooking.eventStartDate;
+        const eventEndDate = session.newBooking.eventEndDate;
+      
+        if (eventStartDate && eventEndDate) {
+          if (bookingDate < eventStartDate || bookingDate > eventEndDate) {
+            const startStr = eventStartDate.toLocaleDateString('id-ID');
+            const endStr = eventEndDate.toLocaleDateString('id-ID');
+            
+            const errorMsg = language === 'id' ?
+              `Tanggal ${messageText} tidak dalam periode event. Event "${session.newBooking.eventName}" berlangsung dari ${startStr} sampai ${endStr}. Silakan pilih tanggal dalam rentang ini:` :
+              `Date ${messageText} is not within the event period. Event "${session.newBooking.eventName}" runs from ${startStr} to ${endStr}. Please choose a date within this range:`;
+            
+            await sendWhatsAppMessage(phoneNumber, errorMsg);
+            return;
+          }
+        }
+      
+        session.newBooking.bookingDate = messageText.trim();
+        session.newBooking.step = 'confirming';
+        userSessions.set(phoneNumber, session);
+      
+        await showBookingConfirmation(phoneNumber, language);
+      
+      } else if (step === 'confirming') {
+        if (messageText === '1' || messageText.toLowerCase() === 'yes' || messageText.toLowerCase() === 'ya') {
+          await createBooking(phoneNumber, language);
+        } else if (messageText === '2' || messageText.toLowerCase() === 'no' || messageText.toLowerCase() === 'tidak') {
+          delete session.newBooking;
+          userSessions.set(phoneNumber, session);
+          const cancelMsg = language === 'id' ?
+            "Booking dibatalkan. Ketik '4' atau 'menu' untuk memulai lagi." :
+            "Booking cancelled. Type '4' or 'menu' to start again.";
+          await sendWhatsAppMessage(phoneNumber, cancelMsg);
+        } else {
+          const errorMsg = language === 'id' ?
+            "Silakan balas dengan 1 (Ya) atau 2 (Tidak)." :
+            "Please reply with 1 (Yes) or 2 (No).";
+          await sendWhatsAppMessage(phoneNumber, errorMsg);
+        }
+      }
+    
+    } catch (error) {
+      logger.error("Error handling new booking flow", error);
+      const errorMsg = language === 'id' ?
+        "Error memproses booking. Silakan coba lagi." :
+        "Error processing booking. Please try again.";
+      await sendWhatsAppMessage(phoneNumber, errorMsg);
+    }
+  }
+
+  // Show booking confirmation
+  async function showBookingConfirmation(phoneNumber: string, language: 'en' | 'id' = 'en') {
+    const session = userSessions.get(phoneNumber);
+    if (!session?.newBooking) return;
+  
+    const booking = session.newBooking;
+    const totalPrice = (booking.eventPrice || 0) * (booking.guests || 1);
+  
+    const messages = {
+      en: {
+        title: "*Booking Confirmation*",
+        event: `Event: ${booking.eventName}`,
+        name: `Name: ${booking.firstName} ${booking.lastName}`,
+        email: `Email: ${booking.email}`,
+        phone: `Phone: ${booking.phone}`,
+        adults: `Adults: ${booking.adults}`,
+        children: `Children: ${booking.children}`,
+        totalGuests: `Total Guests: ${booking.guests}`,
+        date: `Date: ${booking.bookingDate}`,
+        price: `Price per person: Rp${Number(booking.eventPrice || 0).toLocaleString()}`,
+        total: `Total: Rp${totalPrice.toLocaleString()}`,
+        question: "Is this information correct?",
+        option1: "1️⃣ Yes, confirm booking",
+        option2: "2️⃣ No, cancel"
+      },
+      id: {
+        title: "*Konfirmasi Booking*",
+        event: `Event: ${booking.eventName}`,
+        name: `Nama: ${booking.firstName} ${booking.lastName}`,
+        email: `Email: ${booking.email}`,
+        phone: `Telepon: ${booking.phone}`,
+        adults: `Dewasa: ${booking.adults}`,
+        children: `Anak-anak: ${booking.children}`,
+        totalGuests: `Total Tamu: ${booking.guests}`,
+        date: `Tanggal: ${booking.bookingDate}`,
+        price: `Harga per orang: Rp${Number(booking.eventPrice || 0).toLocaleString()}`,
+        total: `Total: Rp${totalPrice.toLocaleString()}`,
+        question: "Apakah informasi ini sudah benar?",
+        option1: "1️⃣ Ya, konfirmasi booking",
+        option2: "2️⃣ Tidak, batal"
+      }
+    };
+  
+    const msg = messages[language];
+    const message = `${msg.title}
+
+  ${msg.event}
+  ${msg.name}
+  ${msg.email}
+  ${msg.phone}
+  ${msg.adults}
+  ${msg.children}
+  ${msg.totalGuests}
+  ${msg.date}
+
+  ${msg.price}
+  ${msg.total}
+
+  ${msg.question}
+
+  ${msg.option1}
+  ${msg.option2}`;
+  
+    await sendWhatsAppMessage(phoneNumber, message);
+  }
+
+  // Create booking in database
+  async function createBooking(phoneNumber: string, language: 'en' | 'id' = 'en') {
+    try {
+      const session = userSessions.get(phoneNumber);
+      if (!session?.newBooking) return;
+    
+      const booking = session.newBooking;
+      const totalPrice = (booking.eventPrice || 0) * (booking.guests || 1);
+    
+      // Generate booking ID using same logic as website
+      const eventName = booking.eventName || 'booking';
+      const timestamp = Date.now();
+      const randomSuffix = Math.random().toString(36).substr(2, 3).toUpperCase();
+      
+      let bookingId: string;
+      if (!eventName || eventName === 'booking') {
+        bookingId = `BK${String(timestamp).slice(-6)}`;
+      } else {
+        const words = eventName.trim().split(/\s+/);
+        let abbreviation = '';
+        
+        if (words.length === 1) {
+          // One word: take first 3 letters
+          abbreviation = words[0].substring(0, 3).toUpperCase();
+        } else if (words.length === 2) {
+          // Two words: first 2 letters from first word, first letter from second word
+          abbreviation = (words[0].substring(0, 2) + words[1].substring(0, 1)).toUpperCase();
+        } else {
+          // Three or more words: first letter from each of the first three words
+          abbreviation = (words[0].substring(0, 1) + words[1].substring(0, 1) + words[2].substring(0, 1)).toUpperCase();
+        }
+        
+        // Use timestamp last 3 digits + random suffix for uniqueness (same as website)
+        const uniqueNumber = String(timestamp).slice(-3) + randomSuffix.slice(0, 1);
+        bookingId = `${abbreviation}${uniqueNumber}`;
+      }
+    
+      // Normalize date formats
+      let bookingDateRaw = booking.bookingDate || '';
+      let bookingDateIso = '';
+      let bookingDateTimestamp: admin.firestore.Timestamp | null = null;
+      if (bookingDateRaw) {
+        // Expect DD/MM/YYYY from WhatsApp flow
+        const m = bookingDateRaw.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+        if (m) {
+          const [_, dd, mm, yyyy] = m;
+          bookingDateIso = `${yyyy}-${mm}-${dd}`; // YYYY-MM-DD
+          const jsDate = new Date(parseInt(yyyy), parseInt(mm)-1, parseInt(dd));
+          bookingDateTimestamp = admin.firestore.Timestamp.fromDate(jsDate);
+        } else {
+          // Fallback attempt parsing
+          const d = new Date(bookingDateRaw);
+          if (!isNaN(d.getTime())) {
+            bookingDateIso = d.toISOString().substring(0,10);
+            bookingDateTimestamp = admin.firestore.Timestamp.fromDate(d);
+          }
+        }
+      }
+
+      // Save to Firestore
+      const bookingsRef = db.collection('booking');
+      await bookingsRef.add({
+        // Identifiers
+        bookingId: bookingId,
+        bookingType: 'event',
+        // Event info
+        eventId: booking.eventId,
+        eventName: booking.eventName,
+        // Customer info
+        firstName: booking.firstName,
+        lastName: booking.lastName,
+        email: booking.email,
+        phone: booking.phone,
+        // Guests
+        adults: booking.adults || 1,
+        children: booking.children || 0,
+        totalGuests: booking.guests || 1,
+        // Schedule
+  bookingDate: bookingDateRaw,
+  bookingDateIso,
+  bookingDateTimestamp,
+        bookingTime: "",
+        // Package defaults (aligned with client)
+        hasPackage: false,
+        packageId: null,
+        packageName: null,
+        packagePeopleCount: null,
+        packagePrice: null,
+        // Payment
+  paymentImageUrl: "",
+  paymentStatus: 'pending', // will become 'reviewing' once proof uploaded
+        paymentMethod: null,
+        // Commerce
+        totalPrice: totalPrice,
+        status: 'pending',
+        // Audit
+        createdAt: admin.firestore.Timestamp.now(),
+        updatedAt: admin.firestore.Timestamp.now(),
+        source: 'whatsapp'
+      });
+    
+      // Clear booking session
+      delete session.newBooking;
+      // Start payment method selection flow
+      session.paymentSelection = { bookingId, step: 'awaiting_method' };
+      userSessions.set(phoneNumber, session);
+    
+      const messages = {
+        en: {
+          success: "*Booking Successful!* ✅",
+          id: `Booking ID: *${bookingId}*`,
+          details: "Your booking has been confirmed.",
+          paymentIntro: "Please choose a payment method to proceed:",
+          menu: "Type 'menu' to return to main menu.",
+          selectPrompt: "Reply with 1, 2, 3, or 4 to select bank."
+        },
+        id: {
+          success: "*Booking Berhasil!* ✅",
+          id: `ID Booking: *${bookingId}*`,
+          details: "Booking Anda telah dikonfirmasi.",
+          paymentIntro: "Silakan pilih metode pembayaran:",
+          menu: "Ketik 'menu' untuk kembali ke menu utama.",
+          selectPrompt: "Balas dengan 1, 2, 3, atau 4 untuk memilih bank."
+        }
+      };
+    
+      const msg = messages[language];
+      const message = `${msg.success}
+
+${msg.id}
+
+${msg.details}
+
+${msg.paymentIntro}
+1️⃣ Mandiri
+2️⃣ BNI
+3️⃣ BCA
+4️⃣ BRI
+
+${msg.selectPrompt}`;
+    
+      await sendWhatsAppMessage(phoneNumber, message);
+    
+      logger.info("Booking created successfully", { bookingId, phoneNumber });
+    
+    } catch (error) {
+      logger.error("Error creating booking", error);
+      const errorMsg = language === 'id' ?
+        "Error menyimpan booking. Silakan coba lagi atau hubungi customer service." :
+        "Error saving booking. Please try again or contact customer service.";
+      await sendWhatsAppMessage(phoneNumber, errorMsg);
+    }
+  }// Handle payment proof upload from WhatsApp image
+async function handlePaymentProofUpload(phoneNumber: string, bookingId: string, mediaId: string | undefined, language: 'en' | 'id' = 'en') {
+  try {
+    if (!mediaId) {
+      const msg = language === 'id' ? 'Tidak ada gambar yang diterima. Silakan kirim ulang bukti pembayaran sebagai foto.' : 'No image received. Please resend the payment proof as a photo.';
+      await sendWhatsAppMessage(phoneNumber, msg);
+      return;
+    }
+
+    const WHATSAPP_TOKEN = process.env.WHATSAPP_ACCESS_TOKEN;
+    if (!WHATSAPP_TOKEN) {
+      logger.error('Missing WHATSAPP_ACCESS_TOKEN when handling payment proof');
+      await sendWhatsAppMessage(phoneNumber, 'Server configuration error. Please try again later.');
+      return;
+    }
+
+    // 1) Get media URL metadata
+    const metaUrl = `https://graph.facebook.com/v18.0/${mediaId}`;
+    logger.info('Fetching media metadata', { metaUrl, bookingId });
+    const metaRes = await fetch(metaUrl, {
+      headers: { Authorization: `Bearer ${WHATSAPP_TOKEN}` }
+    });
+    if (!metaRes.ok) {
+      const text = await metaRes.text();
+      logger.error('Failed to fetch media metadata', { status: metaRes.status, text, mediaId, bookingId });
+      await sendWhatsAppMessage(phoneNumber, language === 'id' ? 'Gagal mengambil media dari WhatsApp.' : 'Failed to fetch media from WhatsApp.');
+      return;
+    }
+    const meta = await metaRes.json();
+    logger.info('Media metadata fetched', { mediaId, mime_type: meta?.mime_type, hasUrl: !!meta?.url, file_size: meta?.file_size });
+    const mediaUrl: string = meta.url;
+    const mimeType: string | undefined = meta.mime_type;
+    const fileSize: number | undefined = meta.file_size || meta.fileSize;
+    // Enforce basic constraints: image only & size limit (5MB)
+    if (!mimeType || !mimeType.startsWith('image/')) {
+      await sendWhatsAppMessage(phoneNumber, language === 'id' ? 'File yang dikirim bukan gambar. Kirim ulang sebagai gambar.' : 'The file sent is not an image. Please resend as an image.');
+      return;
+    }
+    if (fileSize && fileSize > 5_000_000) { // 5MB cap
+      await sendWhatsAppMessage(phoneNumber, language === 'id' ? 'Gambar terlalu besar (maks 5MB). Kirim gambar dengan ukuran lebih kecil.' : 'Image too large (max 5MB). Please send a smaller image.');
+      return;
+    }
+
+    // 2) Download binary
+    logger.info('Downloading media binary', { mediaUrlMasked: mediaUrl ? mediaUrl.split('?')[0] : null, mimeType });
+    const binRes = await fetch(mediaUrl, { headers: { Authorization: `Bearer ${WHATSAPP_TOKEN}` } });
+    if (!binRes.ok) {
+      const text = await binRes.text();
+      logger.error('Failed to download media', { status: binRes.status, text, mediaId, bookingId });
+      await sendWhatsAppMessage(phoneNumber, language === 'id' ? 'Gagal mengunduh media dari WhatsApp.' : 'Failed to download media from WhatsApp.');
+      return;
+    }
+    const buffer = Buffer.from(await binRes.arrayBuffer());
+
+    // 3) Upload to Firebase Storage
+    const bucket = await resolveActiveBucket();
+    logger.info('Uploading media to Storage', { bucket: (bucket as any)?.name, bookingId, overrideUsed: !!explicitBucketEnv });
+    const ext = mimeType?.includes('png') ? 'png' : mimeType?.includes('jpeg') || mimeType?.includes('jpg') ? 'jpg' : 'bin';
+    const fileName = `payment-proofs/payment_${Date.now()}_${bookingId}.${ext}`;
+    const file = bucket.file(fileName);
+    try {
+      await file.save(buffer, { contentType: mimeType || 'application/octet-stream', resumable: false, public: false });
+    } catch (storageErr: any) {
+      // Log rich error context for S1 debugging
+      logger.error('Storage upload failed', {
+        message: storageErr?.message,
+        code: storageErr?.code,
+        status: storageErr?.status || storageErr?.response?.status,
+        errors: storageErr?.errors || storageErr?.response?.data || storageErr?.response?.text,
+        bucket: (bucket as any)?.name,
+        bookingId,
+      });
+      await sendWhatsAppMessage(phoneNumber, language === 'id' ? 'Gagal menyimpan file ke Storage (S1).' : 'Failed to store file (S1).');
+      return;
+    }
+
+    // Generate a short-lived signed URL for viewing
+    let signedUrl: string;
+    try {
+      // Try to get signed URL, fall back to public URL if permissions issue
+      try {
+        const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000); // 7 days
+        [signedUrl] = await file.getSignedUrl({ action: 'read', expires: expiresAt });
+        logger.info('Generated signed URL for payment proof', { fileName, bookingId, expiresAt: expiresAt.toISOString() });
+      } catch (signErr: any) {
+        if (signErr?.name === 'SigningError' || signErr?.message?.includes('signBlob')) {
+          // Fallback: make file public and use public URL
+          logger.warn('Signed URL failed, using public URL', { error: signErr?.message, fileName, bookingId });
+          await file.makePublic();
+          signedUrl = file.publicUrl();
+          logger.info('Using public URL for payment proof', { fileName, bookingId });
+        } else {
+          throw signErr;
+        }
+      }
+    } catch (signErr) {
+      logger.error('URL generation completely failed', { error: (signErr as any)?.message, fileName, bookingId });
+      await sendWhatsAppMessage(phoneNumber, language === 'id' ? 'File diupload tapi gagal membuat URL (S2).' : 'File uploaded but failed to create URL (S2).');
+      return;
+    }
+
+    // 4) Prevent duplicate upload
+    const existingSnap = await db.collection('booking').where('bookingId','==',bookingId).limit(1).get();
+    if (!existingSnap.empty) {
+      const existingData = existingSnap.docs[0].data();
+      if (existingData.paymentImageUrl) {
+        const alreadyMsg = language==='id' ? 'Bukti pembayaran sudah dikirim. Tidak dapat mengirim ulang.' : 'Payment proof already sent. Cannot resend.';
+        await sendWhatsAppMessage(phoneNumber, alreadyMsg);
+        return;
+      }
+    }
+    // 5) Update booking document
+    try {
+      const bookingsRef = db.collection('booking');
+      const q = await bookingsRef.where('bookingId', '==', bookingId).limit(1).get();
+      if (!q.empty) {
+        await q.docs[0].ref.update({
+          paymentImageUrl: signedUrl,
+          paymentStatus: 'reviewing',
+          updatedAt: admin.firestore.Timestamp.now()
+        });
+        logger.info('Booking updated with payment proof', { bookingId });
+      } else {
+        logger.warn('Booking for payment upload not found', { bookingId });
+        await sendWhatsAppMessage(phoneNumber, language === 'id' ? 'Booking tidak ditemukan saat menyimpan bukti (B1).' : 'Booking not found while saving proof (B1).');
+        return;
+      }
+    } catch (firestoreErr) {
+      logger.error('Firestore update failed', { error: (firestoreErr as any)?.message, bookingId });
+      await sendWhatsAppMessage(phoneNumber, language === 'id' ? 'Gagal memperbarui booking di database (B2).' : 'Failed to update booking in database (B2).');
+      return;
+    }
+
+    // Clear payment upload session
+    const session = userSessions.get(phoneNumber);
+    if (session?.paymentUpload) delete session.paymentUpload;
+    if (session) userSessions.set(phoneNumber, session);
+
+    const okMsg = language === 'id'
+      ? '✅ Bukti pembayaran berhasil diterima. Status sekarang *Sedang Ditinjau*. Anda akan diberi tahu setelah disetujui.'
+      : '✅ Payment proof received. Status is now *Under Review*. You will be notified once approved.';
+    await sendWhatsAppMessage(phoneNumber, okMsg);
+
+  } catch (error) {
+    logger.error('Error handling payment proof upload', error);
+    await sendWhatsAppMessage(phoneNumber, language === 'id' ? 'Terjadi kesalahan saat menyimpan bukti pembayaran.' : 'An error occurred while saving the payment proof.');
+  }
+}
+
 // Send WhatsApp message
 async function sendWhatsAppMessage(phoneNumber: string, message: string) {
   try {
-    const WHATSAPP_TOKEN = process.env.WHATSAPP_ACCESS_TOKEN;
-    const PHONE_NUMBER_ID = process.env.WHATSAPP_PHONE_NUMBER_ID;
+  const WHATSAPP_TOKEN = process.env.WHATSAPP_ACCESS_TOKEN || (functionsConfig()?.whatsapp?.access_token as string);
+  const PHONE_NUMBER_ID = process.env.WHATSAPP_PHONE_NUMBER_ID || (functionsConfig()?.whatsapp?.phone_number_id as string);
 
     if (!WHATSAPP_TOKEN || !PHONE_NUMBER_ID) {
       logger.error("WhatsApp credentials not configured");
@@ -1483,5 +2319,92 @@ async function sendWhatsAppMessage(phoneNumber: string, message: string) {
     }
   } catch (error) {
     logger.error("Error sending message", error);
+  }
+}
+
+// Payment method selection constants (mirroring client side)
+const BANK_METHODS: { id: number; code: string; name: string; accountNumber: string; accountName: string; }[] = [
+  { id: 1, code: 'MANDIRI', name: 'Mandiri', accountNumber: '1740098288889', accountName: 'Makassar Phinisi Sea Side Hotel' },
+  { id: 2, code: 'BNI', name: 'BNI', accountNumber: '8881301303', accountName: 'Makassar Phinisi Sea Side Hotel' },
+  { id: 3, code: 'BCA', name: 'BCA', accountNumber: '0253838288', accountName: 'Mks Phinisi Sea Side Hotel' },
+  { id: 4, code: 'BRI', name: 'BRI', accountNumber: '064201001310305', accountName: 'PT.Makassar Phinisi Seaside Hotel' }
+];
+
+async function handlePaymentMethodSelection(phoneNumber: string, messageText: string, language: 'en' | 'id' = 'en') {
+  const session = userSessions.get(phoneNumber);
+  if (!session?.paymentSelection) return;
+  const bookingId = session.paymentSelection.bookingId;
+
+  // Validate numeric choice
+  const choiceNum = parseInt(messageText, 10);
+  const selected = BANK_METHODS.find(b => b.id === choiceNum);
+
+  if (!selected) {
+    const retryMsg = language === 'id'
+      ? `Pilihan tidak valid. Silakan pilih:
+1️⃣ Mandiri
+2️⃣ BNI
+3️⃣ BCA
+4️⃣ BRI`
+      : `Invalid selection. Please choose:
+1️⃣ Mandiri
+2️⃣ BNI
+3️⃣ BCA
+4️⃣ BRI`;
+    await sendWhatsAppMessage(phoneNumber, retryMsg);
+    return;
+  }
+
+  try {
+    // Update booking document with paymentMethod
+    const bookingsRef = db.collection('booking');
+    const q = await bookingsRef.where('bookingId', '==', bookingId).limit(1).get();
+    if (!q.empty) {
+      await q.docs[0].ref.update({
+        paymentMethod: selected.code,
+        updatedAt: admin.firestore.Timestamp.now()
+      });
+    }
+
+    // Clear payment selection, start payment upload state
+    delete session.paymentSelection;
+    session.paymentUpload = { bookingId };
+    userSessions.set(phoneNumber, session);
+
+    const bankInfo = language === 'id'
+      ? `Metode pembayaran dipilih: *${selected.name}*\nNo Rekening: *${selected.accountNumber}*\nNama: *${selected.accountName}*\n\nSilakan lakukan transfer sesuai total dan kirim foto bukti pembayaran di chat ini sekarang.`
+      : `Payment method selected: *${selected.name}*\nAccount Number: *${selected.accountNumber}*\nAccount Name: *${selected.accountName}*\n\nPlease make the transfer for the total amount and send a photo of the payment proof here now.`;
+
+    await sendWhatsAppMessage(phoneNumber, bankInfo);
+  } catch (error) {
+    logger.error('Error updating payment method', error);
+    await sendWhatsAppMessage(phoneNumber, language === 'id' ? 'Terjadi kesalahan saat menyimpan metode pembayaran.' : 'An error occurred while saving payment method.');
+  }
+}
+
+// Reactivate payment proof upload flow for a booking
+async function reactivatePaymentProof(phoneNumber: string, bookingId: string, language: 'en' | 'id' = 'en') {
+  try {
+    // Validate booking exists
+    const bookingsRef = db.collection('booking');
+    const q = await bookingsRef.where('bookingId', '==', bookingId).limit(1).get();
+    if (q.empty) {
+      const notFound = language === 'id'
+        ? `Booking dengan ID ${bookingId} tidak ditemukan.`
+        : `Booking with ID ${bookingId} not found.`;
+      await sendWhatsAppMessage(phoneNumber, notFound);
+      return;
+    }
+    // Reactivate payment upload state
+    const session = userSessions.get(phoneNumber) || { isFirstMessage: false, lastInteraction: Date.now(), language: language };
+    session.paymentUpload = { bookingId };
+    userSessions.set(phoneNumber, session);
+    const msg = language === 'id'
+      ? `Silakan kirim foto bukti pembayaran terbaru untuk *${bookingId}* sekarang.`
+      : `Please send the latest payment proof photo for *${bookingId}* now.`;
+    await sendWhatsAppMessage(phoneNumber, msg);
+  } catch (error) {
+    logger.error('Error reactivating payment proof', error);
+    await sendWhatsAppMessage(phoneNumber, language === 'id' ? 'Terjadi kesalahan saat mengaktifkan ulang unggah bukti.' : 'An error occurred while reactivating proof upload.');
   }
 }

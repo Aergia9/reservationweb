@@ -331,10 +331,10 @@ export function DataTable({ data, onStatusUpdate, onPaymentStatusUpdate, onDelet
         )
       },
       cell: ({ row }) => (
-        <div>
-          <div className="font-medium">{formatDate(row.getValue("bookingDate"))}</div>
-          <div className="text-sm text-muted-foreground">{row.original.bookingTime}</div>
-        </div>
+          <div>
+            <div className="font-medium">{formatDate(row.original.bookingDateIso || row.getValue("bookingDate"))}</div>
+            <div className="text-sm text-muted-foreground">{row.original.bookingTime}</div>
+          </div>
       ),
     },
     {
