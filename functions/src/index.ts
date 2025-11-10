@@ -3,6 +3,26 @@ import {onRequest} from "firebase-functions/https";
 import * as logger from "firebase-functions/logger";
 import * as admin from "firebase-admin";
 
+// --- Runtime hygiene constants ---
+const SESSION_TTL_MS = 2 * 60 * 60 * 1000; // 2 hours
+const MAX_SESSIONS = 1000; // cap memory in warm instances
+
+// PII masking helpers for safer logging
+function maskPhone(p?: string) {
+  if (!p) return p;
+  const s = String(p);
+  if (s.length <= 4) return "***";
+  return `${"*".repeat(Math.max(0, s.length - 4))}${s.slice(-4)}`;
+}
+// Exported utility for potential use in logging/reporting
+export function maskEmail(e?: string) {
+  if (!e) return e;
+  const [u, d] = String(e).split("@");
+  if (!d) return "***";
+  const uMasked = u.length <= 2 ? "**" : `${u[0]}***${u[u.length - 1]}`;
+  return `${uMasked}@${d}`;
+}
+
 // Initialize Firebase Admin SDK with a default bucket (we will lazily verify later in runtime).
 const PROJECT_ID = process.env.GCP_PROJECT || process.env.GCLOUD_PROJECT || process.env.GOOGLE_CLOUD_PROJECT || 'reservationweb-4b61a';
 const explicitBucketEnv = process.env.STORAGE_BUCKET || (functionsConfig()?.firebase?.storage_bucket as string | undefined);
@@ -121,12 +141,8 @@ export const whatsappWebhook = onRequest(async (request, response) => {
       const token = request.query["hub.verify_token"];
       const challenge = request.query["hub.challenge"];
 
-      logger.info("Webhook verification attempt", {
-        mode,
-        token,
-        challenge,
-        expectedToken: process.env.WHATSAPP_VERIFY_TOKEN
-      });
+      // Avoid logging tokens/challenges; only log the mode
+      logger.info("Webhook verification attempt", { mode });
 
     // Verify token (must be supplied via env/config; no insecure fallback)
   const VERIFY_TOKEN = process.env.WHATSAPP_VERIFY_TOKEN || (functionsConfig()?.whatsapp?.verify_token as string);
@@ -141,11 +157,11 @@ export const whatsappWebhook = onRequest(async (request, response) => {
         response.status(200).send(challenge);
         return;
       } else {
-        logger.error("Webhook verification failed", {
-          receivedMode: mode,
-          receivedToken: token,
-          expectedToken: VERIFY_TOKEN
-        });
+            // Minimal failure logging without exposing secret token
+            logger.error("Webhook verification failed", {
+              receivedMode: mode,
+              tokenMismatch: token !== VERIFY_TOKEN
+            });
         response.status(403).send("Forbidden");
         return;
       }
@@ -170,7 +186,7 @@ export const whatsappWebhook = onRequest(async (request, response) => {
         });
         return;
       } catch (error) {
-        logger.error("Error testing events", error);
+    logger.error("Error testing events", { message: (error as any)?.message });
         response.status(500).json({
           success: false,
           error: (error as Error).message
@@ -198,7 +214,7 @@ export const whatsappWebhook = onRequest(async (request, response) => {
 
     response.status(404).send("Not Found");
   } catch (error) {
-    logger.error("Error in WhatsApp webhook", error);
+  logger.error("Error in WhatsApp webhook", { message: (error as any)?.message });
     response.status(500).send("Internal Server Error");
   }
 });
@@ -229,10 +245,32 @@ function setUserLanguage(phoneNumber: string, language: 'en' | 'id') {
   userSessions.set(phoneNumber, { ...session, language });
 }
 
+// Session cleanup utility
+function cleanupSessions() {
+  const now = Date.now();
+  const entries = Array.from(userSessions.entries());
+  // Remove expired based on TTL
+  for (const [key, sess] of entries) {
+    if (now - sess.lastInteraction > SESSION_TTL_MS) {
+      userSessions.delete(key);
+    }
+  }
+  // If still above cap, remove oldest
+  if (userSessions.size > MAX_SESSIONS) {
+    const sorted = entries.sort((a,b) => a[1].lastInteraction - b[1].lastInteraction);
+    const excess = userSessions.size - MAX_SESSIONS;
+    for (let i=0;i<excess;i++) {
+      userSessions.delete(sorted[i][0]);
+    }
+  }
+}
+
 // Process incoming WhatsApp messages
 async function processWhatsAppMessage(messageData: any) {
   try {
     if (!messageData.messages) return;
+    // Cleanup expired sessions and cap size each invocation
+    cleanupSessions();
 
     for (const message of messageData.messages) {
   const phoneNumber = message.from;
@@ -240,7 +278,7 @@ async function processWhatsAppMessage(messageData: any) {
   const messageType = message.type;
   const userLanguage = getUserLanguage(phoneNumber) || 'en';
 
-      logger.info("Message received", { from: phoneNumber, text: messageText, type: messageType });
+  logger.info("Message received", { from: maskPhone(phoneNumber), text: messageText, type: messageType });
 
       // If user sends an image (photo) OR a document that is an image, and we're expecting payment proof, handle it
       const isImageDocument = messageType === "document" && (message.document?.mime_type?.startsWith("image/") ?? false);
@@ -255,7 +293,7 @@ async function processWhatsAppMessage(messageData: any) {
           type: messageType,
           mediaId: message.image?.id || message.document?.id,
           mime: message.image?.mime_type || message.document?.mime_type,
-          from: phoneNumber,
+          from: maskPhone(phoneNumber),
         });
         const session = userSessions.get(phoneNumber);
         if (session?.paymentUpload?.bookingId) {

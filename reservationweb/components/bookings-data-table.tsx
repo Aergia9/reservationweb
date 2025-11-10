@@ -58,6 +58,8 @@ export interface Booking {
   id: string
   bookingId?: string // New custom booking ID
   bookingDate: string
+  bookingDateIso?: string // ISO format date for consistent parsing (YYYY-MM-DD)
+  bookingDateTimestamp?: any // Firestore Timestamp object
   bookingTime: string
   guests?: string // Keep for backward compatibility
   adults?: number
@@ -69,7 +71,7 @@ export interface Booking {
   phone: string
   specialRequests?: string // Keep for backward compatibility
   paymentImageUrl?: string
-  paymentStatus?: "pending" | "approved" | "rejected"
+  paymentStatus?: "pending" | "approved" | "rejected" | "reviewing"
   userId?: string
   userEmail?: string
   bookingType: "event"
@@ -79,6 +81,7 @@ export interface Booking {
   status: "pending" | "confirmed" | "cancelled" | "completed"
   createdAt: any
   updatedAt: any
+  source?: "web" | "whatsapp" // Track booking origin
   // Package information
   hasPackage?: boolean
   packageId?: string | null
@@ -129,6 +132,8 @@ export function DataTable({ data, onStatusUpdate, onPaymentStatusUpdate, onDelet
         return "bg-green-100 text-green-800"
       case "rejected":
         return "bg-red-100 text-red-800"
+      case "reviewing":
+        return "bg-blue-100 text-blue-800"
       default:
         return "bg-gray-100 text-gray-800"
     }
