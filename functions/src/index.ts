@@ -3,6 +3,32 @@ import {onRequest} from "firebase-functions/https";
 import * as logger from "firebase-functions/logger";
 import * as admin from "firebase-admin";
 
+// --- Simple in-memory rate limiters (best-effort; not shared across instances) ---
+type Bucket = { count: number; windowStart: number };
+const ipBuckets1m = new Map<string, Bucket>();
+const ipBuckets1h = new Map<string, Bucket>();
+const phoneBuckets1m = new Map<string, Bucket>();
+const phoneBuckets1h = new Map<string, Bucket>();
+
+function increment(bucketMap: Map<string, Bucket>, key: string, windowMs: number) {
+  const now = Date.now();
+  const b = bucketMap.get(key);
+  if (!b || now - b.windowStart >= windowMs) {
+    const nb = { count: 1, windowStart: now };
+    bucketMap.set(key, nb);
+    return nb.count;
+  }
+  b.count += 1;
+  return b.count;
+}
+
+function getClientIp(req: any): string {
+  const xf = req.headers?.["x-forwarded-for"] || req.headers?.["X-Forwarded-For"];
+  if (typeof xf === 'string') return xf.split(',')[0].trim();
+  if (Array.isArray(xf) && xf.length) return String(xf[0]).split(',')[0].trim();
+  return (req.ip || req.connection?.remoteAddress || req.socket?.remoteAddress || 'unknown') as string;
+}
+
 // --- Runtime hygiene constants ---
 const SESSION_TTL_MS = 2 * 60 * 60 * 1000; // 2 hours
 const MAX_SESSIONS = 1000; // cap memory in warm instances
@@ -129,6 +155,15 @@ setGlobalOptions({ maxInstances: 10 });
 // WhatsApp webhook for customer service automation
 export const whatsappWebhook = onRequest(async (request, response) => {
   try {
+    // ----- RATE LIMIT (IP) -----
+    const clientIp = getClientIp(request);
+    const ipCount1m = increment(ipBuckets1m, clientIp, 60_000); // per minute
+    const ipCount1h = increment(ipBuckets1h, clientIp, 60 * 60_000); // per hour
+    if (ipCount1m > 120 || ipCount1h > 2000) { // thresholds
+      logger.warn('Rate limit exceeded for IP', { ip: clientIp, ipCount1m, ipCount1h });
+      response.status(429).send('Too Many Requests');
+      return;
+    }
     logger.info("WhatsApp webhook received", {
       method: request.method,
       body: request.body,
@@ -274,6 +309,15 @@ async function processWhatsAppMessage(messageData: any) {
 
     for (const message of messageData.messages) {
   const phoneNumber = message.from;
+  // ----- RATE LIMIT (PHONE) -----
+  const phoneKey = phoneNumber;
+  const phoneCount1m = increment(phoneBuckets1m, phoneKey, 60_000);
+  const phoneCount1h = increment(phoneBuckets1h, phoneKey, 60 * 60_000);
+  if (phoneCount1m > 40 || phoneCount1h > 800) { // user-level thresholds
+    logger.warn('Rate limit exceeded for phone', { masked: maskPhone(phoneNumber), phoneCount1m, phoneCount1h });
+    await sendWhatsAppMessage(phoneNumber, 'You are sending messages too fast. Please wait a moment before trying again.');
+    continue; // skip this message but continue loop
+  }
   const messageText = message.text?.body?.toLowerCase().trim() || "";
   const messageType = message.type;
   const userLanguage = getUserLanguage(phoneNumber) || 'en';
