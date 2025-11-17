@@ -76,7 +76,7 @@ export default function PaymentInfoPopup({ isOpen, onClose, bookingDetails, sele
       setCompletedBookingId("")
     }
   }, [isOpen])
-  
+
   const copyToClipboard = (text: string, label: string) => {
     navigator.clipboard.writeText(text).then(() => {
       toast.success(`${label} copied to clipboard!`)
@@ -132,7 +132,7 @@ export default function PaymentInfoPopup({ isOpen, onClose, bookingDetails, sele
       const eventName = selectedEvent?.name || 'booking'
       const timestamp = Date.now()
       const randomSuffix = Math.random().toString(36).substr(2, 3).toUpperCase()
-      
+
       // Create a more unique booking ID
       let bookingId: string
       if (!eventName || eventName === 'booking') {
@@ -140,7 +140,7 @@ export default function PaymentInfoPopup({ isOpen, onClose, bookingDetails, sele
       } else {
         const words = eventName.trim().split(/\s+/)
         let abbreviation = ''
-        
+
         if (words.length === 1) {
           abbreviation = words[0].substring(0, 3).toUpperCase()
         } else if (words.length === 2) {
@@ -148,7 +148,7 @@ export default function PaymentInfoPopup({ isOpen, onClose, bookingDetails, sele
         } else {
           abbreviation = (words[0].substring(0, 1) + words[1].substring(0, 1) + words[2].substring(0, 1)).toUpperCase()
         }
-        
+
         // Use timestamp last 3 digits + random suffix for uniqueness
         const uniqueNumber = String(timestamp).slice(-3) + randomSuffix.slice(0, 1)
         bookingId = `${abbreviation}${uniqueNumber}`
@@ -157,7 +157,7 @@ export default function PaymentInfoPopup({ isOpen, onClose, bookingDetails, sele
       // Prepare booking data using formData from the original form
       const selectedPkg = selectedEvent?.packages?.find((pkg: any) => pkg.id === formData.selectedPackage)
       const totalGuests = (parseInt(formData.adults) || 0) + (parseInt(formData.children) || 0)
-      
+
       const bookingData = {
         bookingId: bookingId,
         bookingDate: formData.bookingDate,
@@ -187,7 +187,7 @@ export default function PaymentInfoPopup({ isOpen, onClose, bookingDetails, sele
 
       // Save to Firestore
       await addDoc(collection(db, 'booking'), bookingData)
-      
+
       // Send booking confirmation email
       try {
         await emailService.sendBookingConfirmation({
@@ -205,11 +205,11 @@ export default function PaymentInfoPopup({ isOpen, onClose, bookingDetails, sele
         console.error('Error sending booking confirmation email:', emailError)
         // Don't break the booking flow if email fails
       }
-      
+
       // Store booking ID and show confirmation popup
       setCompletedBookingId(bookingId)
       setShowConfirmation(true)
-      
+
     } catch (error) {
       console.error('Error completing booking:', error)
       toast.error("Failed to complete booking. Please try again.")
@@ -221,15 +221,15 @@ export default function PaymentInfoPopup({ isOpen, onClose, bookingDetails, sele
   // Handle confirmation popup close
   const handleConfirmationClose = () => {
     setShowConfirmation(false)
-    
+
     // Call the booking complete callback
     if (onBookingComplete) {
       onBookingComplete({ bookingId: completedBookingId })
     }
-    
+
     // Close the payment popup
     onClose()
-    
+
     toast.success('Thank you! We will contact you soon.')
   }
 
@@ -242,12 +242,12 @@ export default function PaymentInfoPopup({ isOpen, onClose, bookingDetails, sele
 
   const calculateTotalPrice = () => {
     if (!selectedEvent || !formData) return 0
-    
+
     const selectedPkg = selectedEvent.packages?.find((pkg: any) => pkg.id === formData.selectedPackage)
     if (selectedPkg) {
       return selectedPkg.price
     }
-    
+
     const adults = parseInt(formData.adults) || 0
     const children = parseInt(formData.children) || 0
     return (adults + children) * (selectedEvent.price || 0)
@@ -295,7 +295,6 @@ export default function PaymentInfoPopup({ isOpen, onClose, bookingDetails, sele
               <strong>Step 2: Upload your payment proof to complete booking</strong>
             </p>
           </div>
-
             {/* Bank Accounts */}
             <div className="space-y-3">
               <h3 className="font-semibold text-gray-800 mb-3">Choose Bank Account for Transfer:</h3>
