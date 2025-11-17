@@ -87,8 +87,8 @@ export default function BookingChatBot({ isOpen, onClose }: BookingChatBotProps)
       askBookingId: "Please enter your booking ID:",
       searchingBooking: "Searching for your booking...",
       bookingFound: "Booking found. Here are the details:\n\n**Booking Information**\nBooking ID: {bookingId}\nName: {firstName} {lastName}\nEvent: {eventName}\nDate: {date}\nTime: {time}\nGuests: {adults} Adults, {children} Children\nStatus: {status}\n\nPlease choose an option:\n1️⃣ Continue - Proceed to edit this booking\n2️⃣ Back - Start over with a different booking ID\n\nType 1 or 2:",
-      bookingNotFound: "Sorry, I could not find a booking with that ID. Please check your booking ID and try again. Make sure to enter the 6-digit booking ID (like BUP001).",
-      invalidBookingId: "Please enter a valid 6-digit booking ID (letters and numbers only, like BUP001).",
+      bookingNotFound: "Sorry, I could not find a booking with that ID. Please check your booking ID and try again. Make sure to enter your booking ID correctly (e.g., BUP001, BPB236H).",
+      invalidBookingId: "Please enter a valid booking ID (3-10 characters, letters and numbers only, e.g., BUP001 or BPB236H).",
       securityVerification: "For security purposes, I need to verify your identity. Please provide:",
       emailReceived: "Email received. Now please enter your phone number:",
       invalidEmail: "Please enter a valid email address.",
@@ -134,8 +134,8 @@ export default function BookingChatBot({ isOpen, onClose }: BookingChatBotProps)
       askBookingId: "Silakan masukkan ID booking Anda:",
       searchingBooking: "Mencari booking Anda...",
       bookingFound: "Booking ditemukan. Berikut adalah detailnya:\n\n**Informasi Booking**\nID Booking: {bookingId}\nNama: {firstName} {lastName}\nEvent: {eventName}\nTanggal: {date}\nWaktu: {time}\nTamu: {adults} Dewasa, {children} Anak-anak\nStatus: {status}\n\nSilakan pilih opsi:\n1️⃣ Lanjutkan - Lanjut untuk mengedit booking ini\n2️⃣ Kembali - Mulai lagi dengan ID booking yang berbeda\n\nKetik 1 atau 2:",
-      bookingNotFound: "Maaf, saya tidak dapat menemukan booking dengan ID tersebut. Silakan periksa ID booking Anda dan coba lagi. Pastikan memasukkan ID booking 6 digit (seperti BUP001).",
-      invalidBookingId: "Silakan masukkan ID booking 6 digit yang valid (huruf dan angka saja, seperti BUP001).",
+      bookingNotFound: "Maaf, saya tidak dapat menemukan booking dengan ID tersebut. Silakan periksa ID booking Anda dan coba lagi. Pastikan memasukkan ID booking dengan benar (contoh: BUP001, BPB236H).",
+      invalidBookingId: "Silakan masukkan ID booking yang valid (3-10 karakter, huruf dan angka saja, contoh: BUP001 atau BPB236H).",
       securityVerification: "Untuk tujuan keamanan, saya perlu memverifikasi identitas Anda. Silakan berikan:",
       emailReceived: "Email diterima. Sekarang silakan masukkan nomor telepon Anda:",
       invalidEmail: "Silakan masukkan alamat email yang valid.",
@@ -543,7 +543,7 @@ export default function BookingChatBot({ isOpen, onClose }: BookingChatBotProps)
         break
 
       case 'ask_booking_id':
-        if (trimmedInput.length === 6 && /^[A-Z0-9]+$/.test(trimmedInput.toUpperCase())) {
+        if (trimmedInput.length >= 3 && trimmedInput.length <= 10 && /^[A-Z0-9]+$/i.test(trimmedInput)) {
           console.log('Adding searchingBooking message, language:', language)
           const searchMessage = language === 'id' ? translations.id.searchingBooking : translations.en.searchingBooking
           addBotMessage(searchMessage)
@@ -1005,7 +1005,7 @@ Type 1, 2, 3, or 4:`)
                   className={`max-w-[80%] rounded-lg p-3 shadow-sm text-sm ${
                     message.type === 'user'
                       ? 'bg-blue-500 text-white'
-                      : 'bg-white border border-gray-200 text-gray-800'
+                      : 'bg-white border border-gray-200 text-black'
                   }`}
                 >
                   <div className="flex items-start gap-2">
@@ -1119,7 +1119,7 @@ Type 1, 2, 3, or 4:`)
                       className={`max-w-[85%] rounded-lg p-2 shadow-sm text-xs ${
                         message.type === 'user'
                           ? 'bg-blue-500 text-white'
-                          : 'bg-white border border-gray-200 text-gray-800'
+                          : 'bg-white border border-gray-200 text-black'
                       }`}
                     >
                       <div className="flex items-start gap-2">

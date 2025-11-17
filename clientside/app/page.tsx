@@ -276,7 +276,7 @@ export default function ReservationPage() {
                       Min {event.minGuests} guests
                     </span>
                   </div>
-                  <Button variant="outline" size="sm" className="w-full bg-white border-gray-300 text-black hover:bg-gray-50">
+                  <Button variant="outline" size="sm" className="w-full bg-white border-gray-300 text-black hover:bg-gray-50 hover:text-black">
                     Book Event
                   </Button>
                 </CardContent>
