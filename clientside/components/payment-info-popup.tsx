@@ -124,7 +124,7 @@ export default function PaymentInfoPopup({ isOpen, onClose, bookingDetails, sele
         const timestamp = Date.now()
         const fileName = `payment_${timestamp}_${paymentProof.name}`
         const storageRef = ref(storage, `payment-proofs/${fileName}`)
-        const snapshot = await uploadBytes(storageRef, paymentProof)
+        const snapshot = await uploadBytes(storageRef, paymentProof, { contentType: paymentProof.type || 'image/*' })
         paymentImageUrl = await getDownloadURL(snapshot.ref)
       }
 

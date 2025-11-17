@@ -2,6 +2,7 @@ import { initializeApp } from "firebase/app";
 import { getAuth } from "firebase/auth";
 import { getFirestore } from "firebase/firestore";
 import { getStorage } from "firebase/storage";
+import { initializeAppCheck, ReCaptchaEnterpriseProvider } from "firebase/app-check";
 
 const firebaseConfig = {
   apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY || "AIzaSyD2sDArKX1-hESo3afXs8BdECi1yDk_ypE",
@@ -20,5 +21,20 @@ const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db = getFirestore(app, "event");
 const storage = getStorage(app);
+
+// Optional: Initialize App Check in the browser if a site key is provided
+if (typeof window !== "undefined") {
+  const siteKey = process.env.NEXT_PUBLIC_RECAPTCHA_ENTERPRISE_SITE_KEY;
+  try {
+    if (siteKey) {
+      initializeAppCheck(app, {
+        provider: new ReCaptchaEnterpriseProvider(siteKey),
+        isTokenAutoRefreshEnabled: true,
+      });
+    }
+  } catch (_) {
+    // no-op: avoid breaking if App Check already initialized or unavailable
+  }
+}
 
 export { auth, db, storage };
