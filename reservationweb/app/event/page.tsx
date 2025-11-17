@@ -87,6 +87,7 @@ export default function Page() {
   // Form states for both regular items and special events - updated for multiple images
   const [selectedImageFiles, setSelectedImageFiles] = useState<File[]>([]);
   const [imagePreviews, setImagePreviews] = useState<string[]>([]);
+  const [existingImages, setExistingImages] = useState<string[]>([]); // Track existing images from Firebase
   const [formData, setFormData] = useState({
     name: "",
     description: "",
@@ -283,8 +284,8 @@ export default function Page() {
       let imageUrl = formData.image || "/placeholder.svg";
       
       // Handle multiple image uploads if files are selected
-      const existingImages = items.find(item => item.id === editingId)?.images || [];
-      let imageUrls: string[] = existingImages;
+      // Use the tracked existingImages state (which may have some removed)
+      let imageUrls: string[] = [...existingImages];
       if (selectedImageFiles.length > 0) {
         try {
           const uploadPromises = selectedImageFiles.map(async (file, index) => {
@@ -429,8 +430,11 @@ export default function Page() {
         includes: pkg.includes.join(', ')
       })) || []
     });
-    // Show existing images as previews
-    setImagePreviews(item.images || [item.image].filter((img): img is string => Boolean(img)));
+    // Show existing images as previews and track them separately
+    const existing = item.images || [item.image].filter((img): img is string => Boolean(img));
+    setExistingImages(existing);
+    setImagePreviews(existing);
+    setSelectedImageFiles([]); // Clear any new uploads
     setIsEditDialogOpen(true);
   };
 
@@ -455,23 +459,26 @@ export default function Page() {
     });
     setSelectedImageFiles([]);
     setImagePreviews([]);
+    setExistingImages([]);
     
-    // Clean up all preview URLs
-    imagePreviews.forEach(url => URL.revokeObjectURL(url));
+    // Clean up only blob URLs (new uploads), not Firebase URLs
+    imagePreviews.forEach(url => {
+      if (url.startsWith('blob:')) {
+        URL.revokeObjectURL(url);
+      }
+    });
   };
 
   // Handle multiple image file selection
   const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files || []);
     if (files.length > 0) {
-      // Add new files to existing ones instead of replacing
-      const combinedFiles = [...selectedImageFiles, ...files];
-      setSelectedImageFiles(combinedFiles);
+      // Add new files to existing uploads
+      setSelectedImageFiles([...selectedImageFiles, ...files]);
       
-      // Create preview URLs for all new files and add to existing previews
+      // Create preview URLs for new files and append to previews
       const newPreviewUrls = files.map(file => URL.createObjectURL(file));
-      const combinedPreviews = [...imagePreviews, ...newPreviewUrls];
-      setImagePreviews(combinedPreviews);
+      setImagePreviews([...imagePreviews, ...newPreviewUrls]);
       
       // Clear the manual URL field when files are selected
       setFormData({ ...formData, image: "", images: [] });
@@ -483,14 +490,24 @@ export default function Page() {
   
   // Remove a specific image from selection
   const removeImagePreview = (index: number) => {
-    const newFiles = selectedImageFiles.filter((_, i) => i !== index);
-    const newPreviews = imagePreviews.filter((_, i) => i !== index);
+    const removedUrl = imagePreviews[index];
     
-    // Revoke the removed URL to free memory
-    URL.revokeObjectURL(imagePreviews[index]);
+    // Check if it's an existing Firebase image or a new upload
+    if (existingImages.includes(removedUrl)) {
+      // Remove from existing images
+      setExistingImages(existingImages.filter((_, i) => i !== index));
+    } else {
+      // It's a new upload - find its index in selectedImageFiles
+      const newFileIndex = index - existingImages.length;
+      if (newFileIndex >= 0) {
+        setSelectedImageFiles(selectedImageFiles.filter((_, i) => i !== newFileIndex));
+        // Revoke blob URL to free memory
+        URL.revokeObjectURL(removedUrl);
+      }
+    }
     
-    setSelectedImageFiles(newFiles);
-    setImagePreviews(newPreviews);
+    // Remove from previews array
+    setImagePreviews(imagePreviews.filter((_, i) => i !== index));
   };
 
   // Package management functions
