@@ -13,7 +13,7 @@ import { Timestamp, collection, addDoc, getDocs, query, where } from 'firebase/f
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage'
 import { db, storage } from "@/lib/firebase"
 import { emailService } from "@/lib/emailService"
-// Confirmation will render inline to avoid nested Dialog portal issues
+import BookingConfirmationPopup from "./booking-confirmation-popup"
 
 interface PaymentInfoPopupProps {
   isOpen: boolean
@@ -124,7 +124,7 @@ export default function PaymentInfoPopup({ isOpen, onClose, bookingDetails, sele
         const timestamp = Date.now()
         const fileName = `payment_${timestamp}_${paymentProof.name}`
         const storageRef = ref(storage, `payment-proofs/${fileName}`)
-        const snapshot = await uploadBytes(storageRef, paymentProof, { contentType: paymentProof.type || 'image/*' })
+        const snapshot = await uploadBytes(storageRef, paymentProof)
         paymentImageUrl = await getDownloadURL(snapshot.ref)
       }
 
@@ -256,194 +256,165 @@ export default function PaymentInfoPopup({ isOpen, onClose, bookingDetails, sele
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent className="max-w-lg mx-auto max-h-[90vh] overflow-y-auto bg-white border border-black shadow-lg">
-        {showConfirmation ? (
-          <>
-            <DialogHeader>
-              <DialogTitle className="flex items-center justify-center gap-2 text-xl font-bold text-green-600">
-                Booking Confirmed!
-              </DialogTitle>
-            </DialogHeader>
-            <div className="space-y-4 py-2">
-              <Card className="bg-gray-50 border-gray-200">
-                <CardContent className="p-4">
-                  <div className="text-center space-y-2">
-                    <p className="text-gray-700">
-                      Thank you for your booking! Our admin team will review your payment and contact you soon.
-                    </p>
-                    <div className="bg-white p-3 rounded-lg border border-gray-200 mt-2">
-                      <p className="text-sm text-gray-600 mb-1">Your Booking ID:</p>
-                      <div className="flex items-center justify-center gap-2">
-                        <span className="font-mono text-lg font-bold text-green-700">{completedBookingId}</span>
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => copyToClipboard(completedBookingId, "Booking ID")}
-                          className="h-8 w-8 p-0"
-                        >
-                          <Copy className="w-4 h-4" />
-                        </Button>
-                      </div>
-                      <p className="text-xs text-gray-500 mt-1">Please save this ID for your reference</p>
-                    </div>
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2 text-xl font-bold text-gray-800">
+            <CreditCard className="h-6 w-6" />
+            Payment Information
+          </DialogTitle>
+        </DialogHeader>
+        
+        <div className="space-y-4">
+          {/* Event Summary */}
+          {selectedEvent && (
+            <Card className="bg-gray-50">
+              <CardContent className="p-4">
+                <h3 className="font-semibold text-gray-800 mb-2">Event Summary</h3>
+                <div className="space-y-1 text-sm">
+                  <div className="flex justify-between">
+                    <span className="text-gray-600">Event:</span>
+                    <span className="font-medium">{selectedEvent.name}</span>
                   </div>
-                </CardContent>
-              </Card>
-              <div className="text-center">
-                <Button onClick={handleConfirmationClose} className="w-full bg-green-600 hover:bg-green-700 text-white">
-                  Continue
-                </Button>
-              </div>
-            </div>
-          </>
-        ) : (
-          <>
-            <DialogHeader>
-              <DialogTitle className="flex items-center gap-2 text-xl font-bold text-gray-800">
-                <CreditCard className="h-6 w-6" />
-                Payment Information
-              </DialogTitle>
-            </DialogHeader>
+                  <div className="flex justify-between">
+                    <span className="text-gray-600">Price:</span>
+                    <span className="font-bold text-green-600">
+                      {selectedEvent.packages?.length > 0 
+                        ? 'Package prices vary' 
+                        : formatCurrency(selectedEvent.price || 0) + '/person'
+                      }
+                    </span>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          )}
 
-            <div className="space-y-4">
-              {selectedEvent && (
-                <Card className="bg-gray-50">
+          {/* Payment Instructions */}
+          <div className="text-center p-4 bg-yellow-50 rounded-lg border-l-4 border-yellow-400">
+            <p className="text-sm text-yellow-800">
+              <strong>Step 1: Choose a bank and make the transfer</strong><br />
+              <strong>Step 2: Upload your payment proof to complete booking</strong>
+            </p>
+          </div>
+
+            {/* Bank Accounts */}
+            <div className="space-y-3">
+              <h3 className="font-semibold text-gray-800 mb-3">Choose Bank Account for Transfer:</h3>
+              {bankAccounts.map((bank, index) => (
+                <Card key={index} className="border border-gray-200 hover:border-gray-300 transition-colors">
                   <CardContent className="p-4">
-                    <h3 className="font-semibold text-gray-800 mb-2">Event Summary</h3>
-                    <div className="space-y-1 text-sm">
-                      <div className="flex justify-between">
-                        <span className="text-gray-600">Event:</span>
-                        <span className="font-medium">{selectedEvent.name}</span>
+                    <div className="flex items-center justify-between mb-3">
+                      <div className="flex items-center gap-3">
+                        <img 
+                          src={bank.logo} 
+                          alt={`${bank.bank} Logo`}
+                          className={`${bank.bank === 'BCA' ? 'h-12' : 'h-8'} w-auto object-contain`}
+                          onError={(e) => {
+                            e.currentTarget.style.display = 'none'
+                            e.currentTarget.nextElementSibling?.classList.remove('hidden')
+                          }}
+                        />
+                        <div className={`hidden px-3 py-1 rounded-full text-white text-sm font-medium ${bank.color}`}>
+                          {bank.bank}
+                        </div>
                       </div>
-                      <div className="flex justify-between">
-                        <span className="text-gray-600">Price:</span>
-                        <span className="font-bold text-green-600">
-                          {selectedEvent.packages?.length > 0 ? 'Package prices vary' : formatCurrency(selectedEvent.price || 0) + '/person'}
-                        </span>
+                    </div>
+                    
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm text-gray-600">Account Number:</span>
+                        <div className="flex items-center gap-2">
+                          <span className="font-mono font-bold text-gray-800">{bank.accountNumber}</span>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => copyToClipboard(bank.accountNumber, "Account number")}
+                            className="h-6 w-6 p-0"
+                          >
+                            <Copy className="h-3 w-3" />
+                          </Button>
+                        </div>
+                      </div>
+                      
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm text-gray-600">Account Name:</span>
+                        <div className="flex items-center gap-2">
+                          <span className="font-medium text-gray-800 text-right">{bank.accountName}</span>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => copyToClipboard(bank.accountName, "Account name")}
+                            className="h-6 w-6 p-0"
+                          >
+                            <Copy className="h-3 w-3" />
+                          </Button>
+                        </div>
                       </div>
                     </div>
                   </CardContent>
                 </Card>
-              )}
-
-              <div className="text-center p-4 bg-yellow-50 rounded-lg border-l-4 border-yellow-400">
-                <p className="text-sm text-yellow-800">
-                  <strong>Step 1: Choose a bank and make the transfer</strong><br />
-                  <strong>Step 2: Upload your payment proof to complete booking</strong>
-                </p>
-              </div>
-
-              <div className="space-y-3">
-                <h3 className="font-semibold text-gray-800 mb-3">Choose Bank Account for Transfer:</h3>
-                {bankAccounts.map((bank, index) => (
-                  <Card key={index} className="border border-gray-200 hover:border-gray-300 transition-colors">
-                    <CardContent className="p-4">
-                      <div className="flex items-center justify-between mb-3">
-                        <div className="flex items-center gap-3">
-                          <img
-                            src={bank.logo}
-                            alt={`${bank.bank} Logo`}
-                            className={`${bank.bank === 'BCA' ? 'h-12' : 'h-8'} w-auto object-contain`}
-                            onError={(e) => {
-                              e.currentTarget.style.display = 'none'
-                              e.currentTarget.nextElementSibling?.classList.remove('hidden')
-                            }}
-                          />
-                          <div className={`hidden px-3 py-1 rounded-full text-white text-sm font-medium ${bank.color}`}>
-                            {bank.bank}
-                          </div>
-                        </div>
-                      </div>
-
-                      <div className="space-y-2">
-                        <div className="flex items-center justify-between">
-                          <span className="text-sm text-gray-600">Account Number:</span>
-                          <div className="flex items-center gap-2">
-                            <span className="font-mono font-bold text-gray-800">{bank.accountNumber}</span>
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={() => copyToClipboard(bank.accountNumber, "Account number")}
-                              className="h-6 w-6 p-0"
-                            >
-                              <Copy className="h-3 w-3" />
-                            </Button>
-                          </div>
-                        </div>
-
-                        <div className="flex items-center justify-between">
-                          <span className="text-sm text-gray-600">Account Name:</span>
-                          <div className="flex items-center gap-2">
-                            <span className="font-medium text-gray-800 text-right">{bank.accountName}</span>
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={() => copyToClipboard(bank.accountName, "Account name")}
-                              className="h-6 w-6 p-0"
-                            >
-                              <Copy className="h-3 w-3" />
-                            </Button>
-                          </div>
-                        </div>
-                      </div>
-                    </CardContent>
-                  </Card>
-                ))}
-              </div>
-
-              <Card className="bg-white">
-                <CardContent className="p-4">
-                  <div className="flex items-center gap-2 mb-3">
-                    <Upload className="h-5 w-5 text-gray-800" />
-                    <h3 className="font-semibold text-gray-800">Upload Payment Proof</h3>
-                  </div>
-
-                  <div className="space-y-3">
-                    <Label htmlFor="payment-proof" className="text-sm font-medium text-gray-800">
-                      Upload your transfer receipt/proof:
-                    </Label>
-                    <Input
-                      id="payment-proof"
-                      type="file"
-                      accept="image/*"
-                      onChange={handlePaymentProofChange}
-                      className="cursor-pointer w-full"
-                    />
-
-                    {paymentProofPreview && (
-                      <div className="mt-3">
-                        <p className="text-sm text-gray-800 mb-2">Preview:</p>
-                        <img
-                          src={paymentProofPreview}
-                          alt="Payment proof preview"
-                          className="max-w-full h-32 object-contain border rounded-lg bg-white"
-                        />
-                      </div>
-                    )}
-
-                    <Button
-                      onClick={handleUploadPaymentProof}
-                      disabled={!paymentProof || uploading}
-                      className="w-full bg-white hover:bg-gray-50 text-black border border-gray-300"
-                    >
-                      {uploading ? (
-                        <>
-                          <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-gray-800 mr-2"></div>
-                          Uploading...
-                        </>
-                      ) : (
-                        <>
-                          <Upload className="h-4 w-4 mr-2" />
-                          Complete Booking
-                        </>
-                      )}
-                    </Button>
-                  </div>
-                </CardContent>
-              </Card>
+              ))}
             </div>
-          </>
-        )}
+
+            {/* Upload Payment Proof */}
+            <Card className="bg-white">
+              <CardContent className="p-4">
+                <div className="flex items-center gap-2 mb-3">
+                  <Upload className="h-5 w-5 text-gray-800" />
+                  <h3 className="font-semibold text-gray-800">Upload Payment Proof</h3>
+                </div>
+                
+                <div className="space-y-3">
+                  <Label htmlFor="payment-proof" className="text-sm font-medium text-gray-800">
+                    Upload your transfer receipt/proof:
+                  </Label>
+                  <Input
+                    id="payment-proof"
+                    type="file"
+                    accept="image/*"
+                    onChange={handlePaymentProofChange}
+                    className="cursor-pointer w-full"
+                  />
+                  
+                  {paymentProofPreview && (
+                    <div className="mt-3">
+                      <p className="text-sm text-gray-800 mb-2">Preview:</p>
+                      <img 
+                        src={paymentProofPreview} 
+                        alt="Payment proof preview" 
+                        className="max-w-full h-32 object-contain border rounded-lg bg-white"
+                      />
+                    </div>
+                  )}
+                  
+                  <Button
+                    onClick={handleUploadPaymentProof}
+                    disabled={!paymentProof || uploading}
+                    className="w-full bg-white hover:bg-gray-50 text-black border border-gray-300"
+                  >
+                    {uploading ? (
+                      <>
+                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-gray-800 mr-2"></div>
+                        Uploading...
+                      </>
+                    ) : (
+                      <>
+                        <Upload className="h-4 w-4 mr-2" />
+                        Complete Booking
+                      </>
+                    )}
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
       </DialogContent>
+      
+      {/* Booking Confirmation Popup */}
+      <BookingConfirmationPopup
+        isOpen={showConfirmation}
+        onClose={handleConfirmationClose}
+        bookingId={completedBookingId}
+      />
     </Dialog>
   )
 }
