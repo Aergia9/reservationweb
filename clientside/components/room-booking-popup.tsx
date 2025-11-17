@@ -675,7 +675,7 @@ export default function EventBookingPopup({ selectedEvent, isOpen, onClose, onSu
                     <div className="grid grid-cols-1 gap-4 mb-4">
                       <div className="grid grid-cols-2 gap-4">
                         <div>
-                          <Label htmlFor="adults" className="text-gray-800 font-medium">Adults (minimum: {selectedEvent.minGuests})</Label>
+                          <Label htmlFor="adults" className="text-gray-800 font-medium"></Label>
                           <Input
                             type="number"
                             id="adults"
