@@ -128,15 +128,14 @@ export default function ReservationPage() {
             sliderImages.map((image, index) => (
               <div
                 key={image.id}
-                className={`absolute inset-0 transition-opacity duration-1000 ${
+                className={`absolute inset-0 transition-opacity duration-1000 bg-black ${
                   index === currentSlide ? 'opacity-100' : 'opacity-0'
                 }`}
               >
                 <img 
                   src={image.url} 
                   alt={image.title} 
-                  className="w-full h-full object-cover object-center"
-                  style={{ objectFit: 'cover', objectPosition: 'center' }}
+                  className="w-full h-full object-contain"
                 />
               </div>
             ))
