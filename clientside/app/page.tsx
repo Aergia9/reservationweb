@@ -104,7 +104,7 @@ export default function ReservationPage() {
   return (
     <div className="min-h-screen bg-white">
       {/* Enhanced Header with Image Slider */}
-      <div className="relative h-screen overflow-hidden">
+      <div className="relative w-full" style={{ height: '70vh', minHeight: '500px', maxHeight: '800px' }}>
         {/* Background Image Slider */}
         <div className="absolute inset-0">
           {sliderLoading ? (
@@ -128,14 +128,14 @@ export default function ReservationPage() {
             sliderImages.map((image, index) => (
               <div
                 key={image.id}
-                className={`absolute inset-0 transition-opacity duration-1000 bg-black ${
+                className={`absolute inset-0 transition-opacity duration-1000 ${
                   index === currentSlide ? 'opacity-100' : 'opacity-0'
                 }`}
               >
                 <img 
                   src={image.url} 
                   alt={image.title} 
-                  className="w-full h-full object-contain"
+                  className="w-full h-full object-cover"
                 />
               </div>
             ))
