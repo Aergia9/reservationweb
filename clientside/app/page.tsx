@@ -135,7 +135,8 @@ export default function ReservationPage() {
                 <img 
                   src={image.url} 
                   alt={image.title} 
-                  className="w-full h-full object-cover"
+                  className="w-full h-full object-cover object-center"
+                  style={{ objectFit: 'cover', objectPosition: 'center' }}
                 />
               </div>
             ))
@@ -218,10 +219,6 @@ export default function ReservationPage() {
         <div className="container mx-auto px-4">
           <div className="text-center mb-12">
             <h2 className="text-4xl font-bold mb-4 text-balance text-white">Special Event Packages</h2>
-            <p className="text-lg text-white/80 max-w-2xl mx-auto text-pretty">
-              Enhance your dining experience with our curated special events. From wine tastings to live entertainment,
-              create unforgettable memories with our exclusive packages.
-            </p>
           </div>
 
           <div className="flex flex-wrap justify-center gap-8">
