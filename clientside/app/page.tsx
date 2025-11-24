@@ -297,31 +297,29 @@ export default function ReservationPage() {
               
               {/* Social Media Icons */}
               <div className="flex space-x-4 mb-8">
-                <div className="bg-blue-600 p-3 rounded-lg">
+                <a href="https://www.facebook.com/claromks?_rdc=2&_rdr#" target="_blank" rel="noopener noreferrer" className="bg-blue-600 p-3 rounded-lg hover:bg-blue-700 transition-colors">
                   <Facebook className="h-6 w-6 text-white" />
-                </div>
-                <div className="bg-blue-400 p-3 rounded-lg">
+                </a>
+                <a href="https://x.com/claromakassar" target="_blank" rel="noopener noreferrer" className="bg-blue-400 p-3 rounded-lg hover:bg-blue-500 transition-colors">
                   <Twitter className="h-6 w-6 text-white" />
-                </div>
-                <div className="bg-pink-600 p-3 rounded-lg">
+                </a>
+                <a href="https://www.instagram.com/claromakassar/" target="_blank" rel="noopener noreferrer" className="bg-pink-600 p-3 rounded-lg hover:bg-pink-700 transition-colors">
                   <Instagram className="h-6 w-6 text-white" />
-                </div>
-                <div className="bg-red-600 p-3 rounded-lg">
-                  <Youtube className="h-6 w-6 text-white" />
-                </div>
+                </a>
               </div>
               
-              <h3 className="text-xl font-semibold text-white mb-4">Find Us At</h3>
-              <div className="flex space-x-4">
-                <div className="bg-blue-500 p-3 rounded-lg">
-                  <Globe className="h-6 w-6 text-white" />
-                </div>
-                <div className="bg-yellow-500 p-3 rounded-lg">
-                  <MapPin className="h-6 w-6 text-white" />
-                </div>
-                <div className="bg-blue-700 p-3 rounded-lg">
-                  <Facebook className="h-6 w-6 text-white" />
-                </div>
+              <h3 className="text-xl font-semibold text-white mb-4">Find Us On</h3>
+              <div className="w-full max-w-2xl">
+                <iframe 
+                  src="https://www.google.com/maps/embed?pb=!1m14!1m8!1m3!1d3973.591542849053!2d119.4301882!3d-5.169214!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x2dbee2b66bf04dbb%3A0x1fed8c8d21d796ce!2sCLARO%20HOTEL%20MAKASSAR!5e0!3m2!1sen!2sid!4v1763944621865!5m2!1sen!2sid" 
+                  width="100%" 
+                  height="300" 
+                  style={{ border: 0, borderRadius: '8px' }}
+                  allowFullScreen={true}
+                  loading="lazy" 
+                  referrerPolicy="no-referrer-when-downgrade"
+                  className="shadow-lg"
+                ></iframe>
               </div>
             </div>
             
