@@ -67,7 +67,12 @@ interface EventItem {
     price: number;
     peopleCount: number;
     includes: string[];
+    hasChildrenPrice?: boolean;
+    childrenPrice?: number;
   }>;
+  // Children pricing support
+  hasChildrenPrice?: boolean;
+  childrenPrice?: number;
 }
 
 export default function Page() {
