@@ -12,6 +12,8 @@ export interface FirebaseEvent {
   category: "meeting" | "deadline" | "event" | "reminder";
   location?: string;
   price?: number; // For client-side display
+  hasChildrenPrice?: boolean; // Whether event has separate children pricing
+  childrenPrice?: number; // Price for children if different
   image?: string; // For client-side display
   includes?: string[]; // For client-side display
   duration?: string; // For client-side display
@@ -39,12 +41,16 @@ export interface EventPackage {
   price: number;
   peopleCount: number;
   includes: string[];
+  hasChildrenPrice?: boolean;
+  childrenPrice?: number;
 }
 
 export interface SpecialEvent {
   id: string;
   name: string;
   price: number;
+  hasChildrenPrice?: boolean;
+  childrenPrice?: number;
   image: string;
   images?: string[]; // Support for multiple images
   description: string;

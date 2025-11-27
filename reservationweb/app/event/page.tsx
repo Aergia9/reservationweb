@@ -92,6 +92,8 @@ export default function Page() {
     name: "",
     description: "",
     price: "",
+    hasChildrenPrice: false,
+    childrenPrice: "",
     image: "/placeholder.svg",
     images: [] as string[],
     includes: "",
@@ -108,6 +110,8 @@ export default function Page() {
       price: string;
       peopleCount: string;
       includes: string;
+      hasChildrenPrice?: boolean;
+      childrenPrice?: string;
     }>
   });
 
@@ -222,6 +226,12 @@ export default function Page() {
       if (formData.startDate) itemData.startDate = formData.startDate;
       if (formData.endDate) itemData.endDate = formData.endDate;
       
+      // Add children pricing fields
+      if (formData.hasChildrenPrice) {
+        itemData.hasChildrenPrice = true;
+        itemData.childrenPrice = parseFloat(formData.childrenPrice) || 0;
+      }
+      
       // Add package data
       itemData.hasPackages = formData.hasPackages;
       if (formData.hasPackages && formData.packages.length > 0) {
@@ -231,7 +241,9 @@ export default function Page() {
           description: pkg.description,
           price: parseFloat(pkg.price) || 0,
           peopleCount: parseInt(pkg.peopleCount) || 1,
-          includes: pkg.includes.split(',').map((item: string) => item.trim()).filter((item: string) => item)
+          includes: pkg.includes.split(',').map((item: string) => item.trim()).filter((item: string) => item),
+          hasChildrenPrice: pkg.hasChildrenPrice || false,
+          childrenPrice: pkg.hasChildrenPrice ? (parseFloat(pkg.childrenPrice || '0') || 0) : undefined
         }));
       }
       
@@ -253,6 +265,8 @@ export default function Page() {
         startDate: "",
         endDate: "",
         hasPackages: false,
+        hasChildrenPrice: false,
+        childrenPrice: "",
         packages: []
       });
       setSelectedImageFiles([]);
@@ -338,6 +352,15 @@ export default function Page() {
       if (formData.startDate) updateData.startDate = formData.startDate;
       if (formData.endDate) updateData.endDate = formData.endDate;
       
+      // Add children pricing fields
+      if (formData.hasChildrenPrice) {
+        updateData.hasChildrenPrice = true;
+        updateData.childrenPrice = parseFloat(formData.childrenPrice) || 0;
+      } else {
+        updateData.hasChildrenPrice = false;
+        updateData.childrenPrice = null;
+      }
+      
       // Add package data
       updateData.hasPackages = formData.hasPackages;
       if (formData.hasPackages && formData.packages.length > 0) {
@@ -347,7 +370,9 @@ export default function Page() {
           description: pkg.description,
           price: parseFloat(pkg.price) || 0,
           peopleCount: parseInt(pkg.peopleCount) || 1,
-          includes: pkg.includes.split(',').map((item: string) => item.trim()).filter((item: string) => item)
+          includes: pkg.includes.split(',').map((item: string) => item.trim()).filter((item: string) => item),
+          hasChildrenPrice: pkg.hasChildrenPrice || false,
+          childrenPrice: pkg.hasChildrenPrice ? (parseFloat(pkg.childrenPrice || '0') || 0) : undefined
         }));
       } else {
         updateData.packages = [];
@@ -371,6 +396,8 @@ export default function Page() {
         startDate: "",
         endDate: "",
         hasPackages: false,
+        hasChildrenPrice: false,
+        childrenPrice: "",
         packages: []
       });
       setSelectedImageFiles([]);
@@ -421,13 +448,17 @@ export default function Page() {
       startDate: item.startDate || "",
       endDate: item.endDate || "",
       hasPackages: item.hasPackages || false,
+      hasChildrenPrice: item.hasChildrenPrice || false,
+      childrenPrice: item.childrenPrice?.toString() || "",
       packages: item.packages?.map(pkg => ({
         id: pkg.id,
         name: pkg.name,
         description: pkg.description,
         price: pkg.price.toString(),
         peopleCount: pkg.peopleCount.toString(),
-        includes: pkg.includes.join(', ')
+        includes: pkg.includes.join(', '),
+        hasChildrenPrice: pkg.hasChildrenPrice || false,
+        childrenPrice: pkg.childrenPrice?.toString() || ""
       })) || []
     });
     // Show existing images as previews and track them separately
@@ -455,6 +486,8 @@ export default function Page() {
       startDate: "",
       endDate: "",
       hasPackages: false,
+      hasChildrenPrice: false,
+      childrenPrice: "",
       packages: []
     });
     setSelectedImageFiles([]);
@@ -518,7 +551,9 @@ export default function Page() {
       description: "",
       price: "",
       peopleCount: "",
-      includes: ""
+      includes: "",
+      hasChildrenPrice: false,
+      childrenPrice: ""
     };
     setFormData({
       ...formData,
@@ -533,7 +568,7 @@ export default function Page() {
     });
   };
 
-  const updatePackage = (index: number, field: string, value: string) => {
+  const updatePackage = (index: number, field: string, value: string | boolean) => {
     const updatedPackages = [...formData.packages];
     updatedPackages[index] = {
       ...updatedPackages[index],
@@ -639,7 +674,7 @@ export default function Page() {
                       <div className="grid grid-cols-3 gap-4">
                         <div>
                           <Label htmlFor="price">
-                            Price per Person (Rp) 
+                            Price per Adult (Rp) 
                             {formData.hasPackages && <span className="text-muted-foreground">(disabled - using packages)</span>}
                           </Label>
                           <Input
@@ -647,9 +682,9 @@ export default function Page() {
                             type="number"
                             value={formData.price}
                             onChange={(e) => setFormData({ ...formData, price: e.target.value })}
-                            placeholder="150"
+                            placeholder="150000"
                             min="0"
-                            step="0.01"
+                            step="1000"
                             disabled={formData.hasPackages}
                             className={formData.hasPackages ? "opacity-50" : ""}
                           />
@@ -675,6 +710,46 @@ export default function Page() {
                           />
                         </div>
                       </div>
+
+                      {/* Children Pricing Toggle - Only for non-package events */}
+                      {!formData.hasPackages && (
+                        <div className="space-y-2 border rounded-lg p-4 bg-muted/20">
+                          <div className="flex items-center space-x-2">
+                            <Checkbox
+                              id="hasChildrenPrice"
+                              checked={formData.hasChildrenPrice || false}
+                              onCheckedChange={(checked) => 
+                                setFormData({ 
+                                  ...formData, 
+                                  hasChildrenPrice: checked as boolean,
+                                  childrenPrice: checked ? formData.childrenPrice : ''
+                                })
+                              }
+                            />
+                            <Label htmlFor="hasChildrenPrice" className="text-sm font-medium">
+                              Different Price for Children
+                            </Label>
+                          </div>
+                          {formData.hasChildrenPrice && (
+                            <div className="ml-6 mt-2">
+                              <Label htmlFor="childrenPrice">Price per Child (Rp)</Label>
+                              <Input
+                                id="childrenPrice"
+                                type="number"
+                                value={formData.childrenPrice || ''}
+                                onChange={(e) => setFormData({ ...formData, childrenPrice: e.target.value })}
+                                placeholder="75000"
+                                min="0"
+                                step="1000"
+                                className="w-64"
+                              />
+                              <p className="text-xs text-muted-foreground mt-1">
+                                This will be the price charged per child instead of the adult price
+                              </p>
+                            </div>
+                          )}
+                        </div>
+                      )}
 
                       {/* Package System Toggle */}
                       <div className="space-y-4">
@@ -767,6 +842,34 @@ export default function Page() {
                                           min="1"
                                         />
                                       </div>
+                                    </div>
+                                    
+                                    {/* Children pricing for packages */}
+                                    <div className="mb-2 space-y-1">
+                                      <div className="flex items-center space-x-2">
+                                        <Checkbox
+                                          id={`pkg-children-${index}`}
+                                          checked={pkg.hasChildrenPrice || false}
+                                          onCheckedChange={(checked) => 
+                                            updatePackage(index, 'hasChildrenPrice', checked as boolean)
+                                          }
+                                        />
+                                        <Label htmlFor={`pkg-children-${index}`} className="text-xs font-normal">
+                                          Different price for children
+                                        </Label>
+                                      </div>
+                                      {pkg.hasChildrenPrice && (
+                                        <div className="ml-6">
+                                          <Input
+                                            type="number"
+                                            placeholder="Children price"
+                                            value={pkg.childrenPrice || ''}
+                                            onChange={(e) => updatePackage(index, 'childrenPrice', e.target.value)}
+                                            className="text-sm"
+                                            min="0"
+                                          />
+                                        </div>
+                                      )}
                                     </div>
                                     
                                     <div className="space-y-1">

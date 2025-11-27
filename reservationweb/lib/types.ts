@@ -6,6 +6,8 @@ export interface EventPackage {
   price: number;
   peopleCount: number;
   includes: string[];
+  hasChildrenPrice?: boolean;
+  childrenPrice?: number;
 }
 
 // Shared types for Firebase events
@@ -20,6 +22,8 @@ export interface FirebaseEvent {
   category: "meeting" | "deadline" | "event" | "reminder";
   location?: string;
   price?: number; // For client-side display
+  hasChildrenPrice?: boolean; // Whether event has separate children pricing
+  childrenPrice?: number; // Price for children if different
   image?: string; // For client-side display
   includes?: string[]; // For client-side display
   duration?: string; // For client-side display

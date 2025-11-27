@@ -289,8 +289,25 @@ export default function EventBookingPopup({ selectedEvent, isOpen, onClose, onSu
     if (selectedEvent) {
       const selectedPkg = getSelectedPackage();
       if (selectedPkg) {
+        // Package pricing: check if package has children price
+        if (selectedPkg.hasChildrenPrice && selectedPkg.childrenPrice !== undefined) {
+          const adults = parseInt(formData.adults) || 0;
+          const children = parseInt(formData.children) || 0;
+          // For packages, price is total for group, so we calculate proportionally
+          // If package is for X people, split based on adult/child ratio
+          return selectedPkg.price; // Package price is fixed regardless of adult/child split
+        }
         return selectedPkg.price;
       }
+      
+      // Regular event pricing: check if event has children price
+      if (selectedEvent.hasChildrenPrice && selectedEvent.childrenPrice !== undefined) {
+        const adults = parseInt(formData.adults) || 0;
+        const children = parseInt(formData.children) || 0;
+        return (adults * selectedEvent.price) + (children * selectedEvent.childrenPrice);
+      }
+      
+      // Default: single price for all guests
       const totalGuests = (parseInt(formData.adults) || 0) + (parseInt(formData.children) || 0);
       return selectedEvent.price * (totalGuests || 1);
     }
@@ -307,6 +324,17 @@ export default function EventBookingPopup({ selectedEvent, isOpen, onClose, onSu
       if (selectedPkg) {
         return `Book Event - ${selectedPkg.name} - Rp${selectedPkg.price.toLocaleString()}`;
       }
+      
+      // Check if we have children pricing enabled and guest counts
+      if (selectedEvent.hasChildrenPrice && selectedEvent.childrenPrice !== undefined) {
+        const adults = parseInt(formData.adults) || 0;
+        const children = parseInt(formData.children) || 0;
+        if (adults > 0 || children > 0) {
+          const total = calculateTotalPrice();
+          return `Book Event - Rp${total.toLocaleString()} (${adults} adults, ${children} children)`;
+        }
+      }
+      
       return `Book Event - Rp${selectedEvent.price.toLocaleString()}/person`;
     }
     
@@ -614,13 +642,23 @@ export default function EventBookingPopup({ selectedEvent, isOpen, onClose, onSu
                           {selectedEvent.packages.map((pkg, index) => (
                             <div key={index} className="text-sm">
                               <span className="font-medium">{pkg.name}:</span> Rp{pkg.price.toLocaleString()} for {pkg.peopleCount} people
+                              {pkg.hasChildrenPrice && pkg.childrenPrice !== undefined && (
+                                <span className="text-gray-600 ml-2">(Adult pricing included)</span>
+                              )}
                             </div>
                           ))}
                         </div>
                       </div>
                     ) : (
                       <div>
-                        <span className="font-medium">Price:</span> Rp{selectedEvent.price.toLocaleString()}/person
+                        {selectedEvent.hasChildrenPrice && selectedEvent.childrenPrice !== undefined ? (
+                          <>
+                            <div><span className="font-medium">Price per Adult:</span> Rp{selectedEvent.price.toLocaleString()}</div>
+                            <div><span className="font-medium">Price per Child:</span> Rp{selectedEvent.childrenPrice.toLocaleString()}</div>
+                          </>
+                        ) : (
+                          <div><span className="font-medium">Price:</span> Rp{selectedEvent.price.toLocaleString()}/person</div>
+                        )}
                       </div>
                     )}
                   </div>
@@ -740,6 +778,9 @@ export default function EventBookingPopup({ selectedEvent, isOpen, onClose, onSu
                                 <div className="text-sm text-gray-700 space-y-1">
                                   <div>
                                     <strong className="text-gray-800">Price:</strong> Rp{selectedPkg.price.toLocaleString()} for {selectedPkg.peopleCount} people
+                                    {selectedPkg.hasChildrenPrice && selectedPkg.childrenPrice !== undefined && (
+                                      <span className="text-gray-600 ml-2">(includes adults & children)</span>
+                                    )}
                                   </div>
                                   {selectedPkg.description && (
                                     <div>
