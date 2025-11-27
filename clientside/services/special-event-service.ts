@@ -26,7 +26,10 @@ const convertFirebaseToSpecialEvent = (doc: any, index: number): SpecialEvent =>
     createdAt: data.createdAt instanceof Timestamp ? data.createdAt : undefined,
     // Package support
     hasPackages: data.hasPackages || false,
-    packages: data.packages || []
+    packages: data.packages || [],
+    // Children pricing support
+    hasChildrenPrice: data.hasChildrenPrice || false,
+    childrenPrice: data.childrenPrice || undefined
   };
 };
 
