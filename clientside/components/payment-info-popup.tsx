@@ -274,13 +274,22 @@ export default function PaymentInfoPopup({ isOpen, onClose, bookingDetails, sele
                     <span className="text-gray-600">Event:</span>
                     <span className="font-medium">{selectedEvent.name}</span>
                   </div>
-                  <div className="flex justify-between">
-                    <span className="text-gray-600">Price:</span>
-                    <span className="font-bold text-green-600">
-                      {selectedEvent.packages?.length > 0 
-                        ? 'Package prices vary' 
-                        : formatCurrency(selectedEvent.price || 0) + '/person'
-                      }
+                  {formData && (
+                    <>
+                      <div className="flex justify-between">
+                        <span className="text-gray-600">Adults:</span>
+                        <span className="font-medium">{formData.adults || 0}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-gray-600">Children:</span>
+                        <span className="font-medium">{formData.children || 0}</span>
+                      </div>
+                    </>
+                  )}
+                  <div className="flex justify-between border-t pt-2 mt-2">
+                    <span className="text-gray-600">Total Price:</span>
+                    <span className="font-bold text-green-600 text-lg">
+                      Rp {bookingDetails?.totalAmount ? bookingDetails.totalAmount.toLocaleString() : '0'}
                     </span>
                   </div>
                 </div>

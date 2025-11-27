@@ -325,14 +325,21 @@ export default function EventBookingPopup({ selectedEvent, isOpen, onClose, onSu
         return `Book Event - ${selectedPkg.name} - Rp${selectedPkg.price.toLocaleString()}`;
       }
       
-      // Check if we have children pricing enabled and guest counts
-      if (selectedEvent.hasChildrenPrice && selectedEvent.childrenPrice !== undefined) {
-        const adults = parseInt(formData.adults) || 0;
-        const children = parseInt(formData.children) || 0;
-        if (adults > 0 || children > 0) {
-          const total = calculateTotalPrice();
+      const adults = parseInt(formData.adults) || 0;
+      const children = parseInt(formData.children) || 0;
+      
+      // Show breakdown if there are guests entered
+      if (adults > 0 || children > 0) {
+        const total = calculateTotalPrice();
+        
+        // Check if we have children pricing enabled
+        if (selectedEvent.hasChildrenPrice && selectedEvent.childrenPrice !== undefined) {
           return `Book Event - Rp${total.toLocaleString()} (${adults} adults, ${children} children)`;
         }
+        
+        // Standard pricing - show total for all guests
+        const totalGuests = adults + children;
+        return `Book Event - Rp${total.toLocaleString()} (${totalGuests} ${totalGuests === 1 ? 'guest' : 'guests'})`;
       }
       
       return `Book Event - Rp${selectedEvent.price.toLocaleString()}/person`;
