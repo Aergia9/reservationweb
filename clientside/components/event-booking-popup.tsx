@@ -308,11 +308,24 @@ export default function EventBookingPopup({ selectedEvent, isOpen, onClose, onSu
       if (selectedEvent.hasChildrenPrice && selectedEvent.childrenPrice !== undefined) {
         const adults = parseInt(formData.adults) || 0;
         const children = parseInt(formData.children) || 0;
-        return (adults * selectedEvent.price) + (children * selectedEvent.childrenPrice);
+        const total = (adults * selectedEvent.price) + (children * selectedEvent.childrenPrice);
+        console.log('Children pricing enabled:', {
+          adults,
+          children,
+          adultPrice: selectedEvent.price,
+          childrenPrice: selectedEvent.childrenPrice,
+          total
+        });
+        return total;
       }
       
       // Default: single price for all guests
       const totalGuests = (parseInt(formData.adults) || 0) + (parseInt(formData.children) || 0);
+      console.log('Standard pricing:', {
+        totalGuests,
+        price: selectedEvent.price,
+        total: selectedEvent.price * (totalGuests || 1)
+      });
       return selectedEvent.price * (totalGuests || 1);
     }
     

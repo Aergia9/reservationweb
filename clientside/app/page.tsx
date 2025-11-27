@@ -241,6 +241,15 @@ export default function ReservationPage() {
                     <Badge className="absolute top-4 right-4 bg-yellow-400 text-black font-semibold">
                       Package Available
                     </Badge>
+                  ) : event.hasChildrenPrice && event.childrenPrice !== undefined ? (
+                    <div className="absolute top-4 right-4 flex flex-col gap-1">
+                      <Badge className="bg-yellow-400 text-black font-semibold text-xs">
+                        Adult: Rp{formatCurrency(event.price)}
+                      </Badge>
+                      <Badge className="bg-green-400 text-black font-semibold text-xs">
+                        Child: Rp{formatCurrency(event.childrenPrice)}
+                      </Badge>
+                    </div>
                   ) : (
                     <Badge className="absolute top-4 right-4 bg-yellow-400 text-black font-semibold">
                       Rp{formatCurrency(event.price)}/person

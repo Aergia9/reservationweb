@@ -1085,7 +1085,7 @@ export default function Page() {
                         <div className="grid grid-cols-3 gap-4">
                           <div>
                             <Label htmlFor="edit-price">
-                              Price per Person
+                              {formData.hasChildrenPrice ? "Price per Adult" : "Price per Person"}
                               {formData.hasPackages && <span className="text-muted-foreground"> (disabled - using packages)</span>}
                             </Label>
                             <Input
@@ -1121,6 +1121,43 @@ export default function Page() {
                             />
                           </div>
                         </div>
+
+                        {/* Children Pricing Section - Only show when NOT using packages */}
+                        {!formData.hasPackages && (
+                          <div className="space-y-3 border rounded-lg p-4 bg-muted/30">
+                            <div className="flex items-center space-x-2">
+                              <Checkbox
+                                id="edit-hasChildrenPrice"
+                                checked={formData.hasChildrenPrice}
+                                onCheckedChange={(checked) => 
+                                  setFormData({ 
+                                    ...formData, 
+                                    hasChildrenPrice: checked as boolean,
+                                    childrenPrice: checked ? formData.childrenPrice : ""
+                                  })
+                                }
+                              />
+                              <Label htmlFor="edit-hasChildrenPrice" className="text-sm font-medium">
+                                Different Price for Children
+                              </Label>
+                            </div>
+                            
+                            {formData.hasChildrenPrice && (
+                              <div>
+                                <Label htmlFor="edit-childrenPrice">Price per Child</Label>
+                                <Input
+                                  id="edit-childrenPrice"
+                                  type="number"
+                                  value={formData.childrenPrice}
+                                  onChange={(e) => setFormData({ ...formData, childrenPrice: e.target.value })}
+                                  placeholder="50"
+                                  min="0"
+                                  step="0.01"
+                                />
+                              </div>
+                            )}
+                          </div>
+                        )}
 
                         {/* Package System Toggle */}
                         <div className="space-y-4">
@@ -1229,6 +1266,33 @@ export default function Page() {
                                           onChange={(e) => updatePackage(index, 'includes', e.target.value)}
                                           className="text-sm"
                                         />
+                                      </div>
+                                      
+                                      {/* Children Pricing for Package */}
+                                      <div className="mt-2 space-y-2 border-t pt-2">
+                                        <div className="flex items-center space-x-2">
+                                          <Checkbox
+                                            id={`edit-pkg-hasChildrenPrice-${index}`}
+                                            checked={pkg.hasChildrenPrice || false}
+                                            onCheckedChange={(checked) => 
+                                              updatePackage(index, 'hasChildrenPrice', checked as boolean)
+                                            }
+                                          />
+                                          <Label htmlFor={`edit-pkg-hasChildrenPrice-${index}`} className="text-xs">
+                                            Different price for children
+                                          </Label>
+                                        </div>
+                                        
+                                        {pkg.hasChildrenPrice && (
+                                          <Input
+                                            type="number"
+                                            placeholder="Children price"
+                                            value={pkg.childrenPrice || ''}
+                                            onChange={(e) => updatePackage(index, 'childrenPrice', e.target.value)}
+                                            className="text-sm"
+                                            min="0"
+                                          />
+                                        )}
                                       </div>
                                     </div>
                                   ))}
