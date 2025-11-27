@@ -357,14 +357,18 @@ export default function Page() {
       if (formData.startDate) updateData.startDate = formData.startDate;
       if (formData.endDate) updateData.endDate = formData.endDate;
       
-      // Add children pricing fields
-      if (formData.hasChildrenPrice) {
-        updateData.hasChildrenPrice = true;
-        updateData.childrenPrice = parseFloat(formData.childrenPrice) || 0;
-      } else {
-        updateData.hasChildrenPrice = false;
-        updateData.childrenPrice = null;
-      }
+      // Add children pricing fields - always save these to ensure they exist
+      updateData.hasChildrenPrice = formData.hasChildrenPrice || false;
+      updateData.childrenPrice = formData.hasChildrenPrice ? (parseFloat(formData.childrenPrice) || 0) : 0;
+      
+      console.log('Saving children pricing:', {
+        hasChildrenPrice: updateData.hasChildrenPrice,
+        childrenPrice: updateData.childrenPrice,
+        formData: {
+          hasChildrenPrice: formData.hasChildrenPrice,
+          childrenPrice: formData.childrenPrice
+        }
+      });
       
       // Add package data
       updateData.hasPackages = formData.hasPackages;
