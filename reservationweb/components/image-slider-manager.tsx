@@ -292,25 +292,25 @@ export function ImageSliderManager() {
         ) : (
           <div className="space-y-4">
             {images.map((image) => (
-            <div key={image.id} className="border rounded-lg p-4 flex items-center gap-4">
-              <div className="w-24 h-16 rounded overflow-hidden">
+            <div key={image.id} className="border rounded-lg p-4 flex flex-col sm:flex-row items-start sm:items-center gap-4">
+              <div className="w-24 h-16 rounded overflow-hidden flex-shrink-0">
                 <img 
                   src={image.url} 
                   alt={image.title}
                   className="w-full h-full object-cover"
                 />
               </div>
-              <div className="flex-1">
-                <div className="flex items-center gap-2">
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2 flex-wrap">
                   <h3 className="font-semibold text-black">{image.title}</h3>
                   <Badge variant={image.isActive ? "default" : "secondary"}>
                     {image.isActive ? "Active" : "Inactive"}
                   </Badge>
                 </div>
                 <p className="text-sm text-gray-600">{image.description}</p>
-                <p className="text-xs text-gray-400 truncate">{image.url}</p>
+                <p className="text-xs text-gray-400 truncate max-w-full break-all">{image.url}</p>
               </div>
-              <div className="flex gap-2">
+              <div className="flex gap-2 flex-shrink-0">
                 <Button
                   size="sm"
                   variant="outline"
