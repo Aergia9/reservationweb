@@ -238,20 +238,20 @@ export default function ReservationPage() {
                 <div className="relative">
                   <img src={event.image || "/placeholder.svg"} alt={event.name} className="w-full h-48 object-cover" />
                   {event.hasPackages && event.packages && event.packages.length > 0 ? (
-                    <Badge className="absolute top-4 right-4 bg-yellow-400 text-black font-semibold">
+                    <Badge className="absolute top-4 right-4 bg-gray-700 text-white font-semibold">
                       Package Available
                     </Badge>
                   ) : event.hasChildrenPrice && event.childrenPrice !== undefined ? (
                     <div className="absolute top-4 right-4 flex flex-col gap-1">
-                      <Badge className="bg-yellow-400 text-black font-semibold text-xs">
+                      <Badge className="bg-gray-700 text-white font-semibold text-xs">
                         Adult: Rp{formatCurrency(event.price)}
                       </Badge>
-                      <Badge className="bg-green-400 text-black font-semibold text-xs">
+                      <Badge className="bg-white text-gray-800 font-semibold text-xs border border-gray-300">
                         Child: Rp{formatCurrency(event.childrenPrice)}
                       </Badge>
                     </div>
                   ) : (
-                    <Badge className="absolute top-4 right-4 bg-yellow-400 text-black font-semibold">
+                    <Badge className="absolute top-4 right-4 bg-gray-700 text-white font-semibold">
                       Rp{formatCurrency(event.price)}/person
                     </Badge>
                   )}
@@ -261,10 +261,10 @@ export default function ReservationPage() {
                     </Badge>
                   </div>
                 </div>
-                <CardContent className="p-6 bg-white/80 backdrop-blur-sm">
+                <CardContent className="p-6 bg-gradient-to-br from-blue-50 to-blue-100">
                   <h3 className="text-xl font-semibold mb-2 text-blue-900">{event.name}</h3>
                   <p className="text-gray-700 mb-4 line-clamp-2">{event.description}</p>
-                  <div className="flex items-center justify-between text-sm text-gray-500 mb-2">
+                  <div className="flex items-center justify-between text-sm text-gray-600 mb-2">
                     <span className="flex items-center gap-1">
                       <Clock className="h-4 w-4" />
                       {event.duration instanceof Timestamp 
