@@ -295,6 +295,23 @@ export default function ReservationPage() {
       {/* Contact Footer */}
       <div className="py-16" style={{backgroundColor: '#FFA896'}}>
         <div className="container mx-auto px-4">
+          {/* Map Section - Full Width on Top */}
+          <div className="mb-12">
+            <h3 className="text-xl font-semibold text-white mb-4 text-center">Find Us On</h3>
+            <div className="w-full max-w-6xl mx-auto">
+              <iframe 
+                src="https://www.google.com/maps/embed?pb=!1m14!1m8!1m3!1d3973.591542849053!2d119.4301882!3d-5.169214!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x2dbee2b66bf04dbb%3A0x1fed8c8d21d796ce!2sCLARO%20HOTEL%20MAKASSAR!5e0!3m2!1sen!2sid!4v1763944621865!5m2!1sen!2sid" 
+                width="100%" 
+                height="400" 
+                style={{ border: 0, borderRadius: '8px' }}
+                allowFullScreen={true}
+                loading="lazy" 
+                referrerPolicy="no-referrer-when-downgrade"
+                className="shadow-lg"
+              ></iframe>
+            </div>
+          </div>
+
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-12">
             {/* Left side - Company info */}
             <div>
@@ -305,7 +322,7 @@ export default function ReservationPage() {
               </p>
               
               {/* Social Media Icons */}
-              <div className="flex space-x-4 mb-8">
+              <div className="flex space-x-4">
                 <a href="https://www.facebook.com/claromks?_rdc=2&_rdr#" target="_blank" rel="noopener noreferrer" className="bg-blue-600 p-3 rounded-lg hover:bg-blue-700 transition-colors">
                   <Facebook className="h-6 w-6 text-white" />
                 </a>
@@ -315,20 +332,6 @@ export default function ReservationPage() {
                 <a href="https://www.instagram.com/claromakassar/" target="_blank" rel="noopener noreferrer" className="bg-pink-600 p-3 rounded-lg hover:bg-pink-700 transition-colors">
                   <Instagram className="h-6 w-6 text-white" />
                 </a>
-              </div>
-              
-              <h3 className="text-xl font-semibold text-white mb-4">Find Us On</h3>
-              <div className="w-full max-w-2xl">
-                <iframe 
-                  src="https://www.google.com/maps/embed?pb=!1m14!1m8!1m3!1d3973.591542849053!2d119.4301882!3d-5.169214!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x2dbee2b66bf04dbb%3A0x1fed8c8d21d796ce!2sCLARO%20HOTEL%20MAKASSAR!5e0!3m2!1sen!2sid!4v1763944621865!5m2!1sen!2sid" 
-                  width="100%" 
-                  height="300" 
-                  style={{ border: 0, borderRadius: '8px' }}
-                  allowFullScreen={true}
-                  loading="lazy" 
-                  referrerPolicy="no-referrer-when-downgrade"
-                  className="shadow-lg"
-                ></iframe>
               </div>
             </div>
             
@@ -362,7 +365,7 @@ export default function ReservationPage() {
           
           {/* Copyright */}
           <div className="border-t border-white/20 mt-12 pt-6 text-center">
-            <p className="text-white/80">© 2025 Claro Makassar | All Rights Reserved</p>
+            <p className="text-white/80">© Copyright 2025 - Claro Hotel Makassar</p>
           </div>
         </div>
       </div>
