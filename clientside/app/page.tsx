@@ -214,10 +214,10 @@ export default function ReservationPage() {
 
 
       {/* Special Events Section */}
-      <div id="special-events" className="py-16" style={{backgroundColor: '#CD1C18'}}>
+      <div id="special-events" className="py-16 bg-white">
         <div className="container mx-auto px-4">
           <div className="text-center mb-12">
-            <h2 className="text-4xl font-bold mb-4 text-balance text-white">Special Event Packages</h2>
+            <h2 className="text-4xl font-bold mb-4 text-balance text-gray-800">Special Event Packages</h2>
           </div>
 
           <div className="flex flex-wrap justify-center gap-8">
@@ -232,7 +232,7 @@ export default function ReservationPage() {
               allEvents.map((event) => (
               <Card
                 key={`event-${event.id}`}
-                className="w-full max-w-sm overflow-hidden cursor-pointer transition-all duration-300 hover:shadow-xl hover:scale-105 bg-white border-2 border-white/20 shadow-lg"
+                className="w-full max-w-sm overflow-hidden cursor-pointer transition-all duration-300 hover:shadow-2xl hover:scale-105 bg-gradient-to-br from-blue-50 to-blue-100 border-2 border-blue-200 shadow-lg"
                 onClick={() => handleEventClick(event)}
               >
                 <div className="relative">
@@ -261,9 +261,9 @@ export default function ReservationPage() {
                     </Badge>
                   </div>
                 </div>
-                <CardContent className="p-6 bg-white">
-                  <h3 className="text-xl font-semibold mb-2 text-black">{event.name}</h3>
-                  <p className="text-gray-600 mb-4 line-clamp-2">{event.description}</p>
+                <CardContent className="p-6 bg-white/80 backdrop-blur-sm">
+                  <h3 className="text-xl font-semibold mb-2 text-blue-900">{event.name}</h3>
+                  <p className="text-gray-700 mb-4 line-clamp-2">{event.description}</p>
                   <div className="flex items-center justify-between text-sm text-gray-500 mb-2">
                     <span className="flex items-center gap-1">
                       <Clock className="h-4 w-4" />
@@ -281,7 +281,7 @@ export default function ReservationPage() {
                       Min {event.minGuests} guests
                     </span>
                   </div>
-                  <Button variant="outline" size="sm" className="w-full bg-white border-gray-300 text-black hover:bg-gray-50 hover:text-black">
+                  <Button variant="outline" size="sm" className="w-full bg-blue-600 text-white border-blue-600 hover:bg-blue-700 hover:border-blue-700">
                     Book Event
                   </Button>
                 </CardContent>
@@ -293,11 +293,11 @@ export default function ReservationPage() {
       </div>
 
       {/* Contact Footer */}
-      <div className="py-16" style={{backgroundColor: '#FFA896'}}>
+      <div className="py-16 bg-gray-100">
         <div className="container mx-auto px-4">
           {/* Map Section - Full Width on Top */}
           <div className="mb-12">
-            <h3 className="text-xl font-semibold text-white mb-4 text-center">Find Us On</h3>
+            <h3 className="text-xl font-semibold text-gray-800 mb-4 text-center">Find Us On</h3>
             <div className="w-full max-w-6xl mx-auto">
               <iframe 
                 src="https://www.google.com/maps/embed?pb=!1m14!1m8!1m3!1d3973.591542849053!2d119.4301882!3d-5.169214!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x2dbee2b66bf04dbb%3A0x1fed8c8d21d796ce!2sCLARO%20HOTEL%20MAKASSAR!5e0!3m2!1sen!2sid!4v1763944621865!5m2!1sen!2sid" 
@@ -315,8 +315,8 @@ export default function ReservationPage() {
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-12">
             {/* Left side - Company info */}
             <div>
-              <h2 className="text-3xl font-bold text-white mb-4">Claro Makassar</h2>
-              <p className="text-white/90 mb-6 text-lg">
+              <h2 className="text-3xl font-bold text-gray-800 mb-4">Claro Makassar</h2>
+              <p className="text-gray-700 mb-6 text-lg">
                 Experience comfort and elegance in the heart of Makassar. Your perfect stay for
                 business, leisure, and unforgettable moments.
               </p>
@@ -337,26 +337,26 @@ export default function ReservationPage() {
             
             {/* Right side - Contact info */}
             <div>
-              <h3 className="text-3xl font-bold text-white mb-6">Contact Us</h3>
+              <h3 className="text-3xl font-bold text-gray-800 mb-6">Contact Us</h3>
               <div className="space-y-4">
-                <div className="flex items-center text-white">
-                  <MapPin className="h-5 w-5 mr-3 text-yellow-400" />
+                <div className="flex items-center text-gray-700">
+                  <MapPin className="h-5 w-5 mr-3 text-blue-600" />
                   <span className="text-lg">Jl. A.P. Pettarani No. 3 Makassar, South Sulawesi</span>
                 </div>
-                <div className="flex items-center text-white">
-                  <Phone className="h-5 w-5 mr-3 text-yellow-400" />
+                <div className="flex items-center text-gray-700">
+                  <Phone className="h-5 w-5 mr-3 text-blue-600" />
                   <span className="text-lg">(62-411) 833 888</span>
                 </div>
-                <div className="flex items-center text-white">
-                  <Phone className="h-5 w-5 mr-3 text-yellow-400" />
+                <div className="flex items-center text-gray-700">
+                  <Phone className="h-5 w-5 mr-3 text-blue-600" />
                   <span className="text-lg">(62-411) 833 777</span>
                 </div>
-                <div className="flex items-center text-white">
-                  <Mail className="h-5 w-5 mr-3 text-yellow-400" />
+                <div className="flex items-center text-gray-700">
+                  <Mail className="h-5 w-5 mr-3 text-blue-600" />
                   <span className="text-lg">hotel@claromakassar.com</span>
                 </div>
-                <div className="flex items-center text-white">
-                  <Globe className="h-5 w-5 mr-3 text-yellow-400" />
+                <div className="flex items-center text-gray-700">
+                  <Globe className="h-5 w-5 mr-3 text-blue-600" />
                   <span className="text-lg">www.claromakassar.com</span>
                 </div>
               </div>
@@ -364,8 +364,8 @@ export default function ReservationPage() {
           </div>
           
           {/* Copyright */}
-          <div className="border-t border-white/20 mt-12 pt-6 text-center">
-            <p className="text-white/80">© Copyright 2025 - Claro Hotel Makassar</p>
+          <div className="border-t border-gray-300 mt-12 pt-6 text-center">
+            <p className="text-gray-600">© Copyright 2025 - Claro Hotel Makassar</p>
           </div>
         </div>
       </div>
