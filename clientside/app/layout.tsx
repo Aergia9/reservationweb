@@ -15,6 +15,9 @@ const geistMono = Geist_Mono({
 
 export const metadata: Metadata = {
   title: "Claro Event Reservation",
+  icons: {
+    icon: "/clarologo.png",
+  },
 };
 
 export default function RootLayout({
