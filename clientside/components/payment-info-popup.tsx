@@ -250,6 +250,13 @@ export default function PaymentInfoPopup({ isOpen, onClose, bookingDetails, sele
 
     const adults = parseInt(formData.adults) || 0
     const children = parseInt(formData.children) || 0
+    
+    // Check if event has children pricing enabled
+    if (selectedEvent.hasChildrenPrice && selectedEvent.childrenPrice !== undefined) {
+      return (adults * selectedEvent.price) + (children * selectedEvent.childrenPrice)
+    }
+    
+    // Default: single price for all guests
     return (adults + children) * (selectedEvent.price || 0)
   }
 
